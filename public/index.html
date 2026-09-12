@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PawDaily</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root{
+    --ink:#2B4C43; --paper:#FAF6EC; --paper-dim:#F1EBDC;
+    --marigold:#E3982E; --rose:#C4574B; --line:#D9D0BA; --white:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,sans-serif;padding-bottom:70px;}
+  .wrap{max-width:480px;margin:0 auto;padding:16px;}
+  h1{font-size:20px;margin:8px 0 4px;}
+  .sub{font-size:12.5px;color:#7a8880;margin-bottom:16px;}
+  .card{background:var(--white);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:12px;}
+  .card h2{font-size:15px;margin:0 0 10px;}
+  .cat-name{font-weight:600;font-size:14px;}
+  .routine-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--paper-dim);}
+  .routine-row:last-child{border-bottom:none;}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:6px;padding:8px 14px;font-size:13.5px;}
+  button.primary{background:var(--ink);color:var(--paper);}
+  button.done{background:var(--marigold);color:#fff;}
+  button.ghost{background:var(--paper-dim);color:var(--ink);}
+  input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;margin-bottom:8px;background:var(--paper-dim);}
+  .empty{text-align:center;color:#8a9690;font-size:13.5px;padding:20px 10px;}
+  .tabbar{position:fixed;bottom:0;left:0;right:0;background:var(--white);border-top:1px solid var(--line);display:flex;}
+  .tabbar button{flex:1;background:none;border-radius:0;padding:12px;font-size:13px;color:#8a9690;}
+  .tabbar button.active{color:var(--ink);font-weight:600;}
+  .toggle{display:flex;align-items:center;justify-content:space-between;}
+  .switch{position:relative;width:44px;height:24px;background:var(--line);border-radius:12px;cursor:pointer;}
+  .switch.on{background:var(--ink);}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.15s;}
+  .switch.on::after{left:22px;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">กำลังโหลด...</div>
+
+<div class="tabbar">
+  <button id="tab-today" onclick="showTab('today')">วันนี้</button>
+  <button id="tab-cats" onclick="showTab('cats')">แมวของฉัน</button>
+  <button id="tab-settings" onclick="showTab('settings')">ตั้งค่า</button>
+</div>
+
+<script>
+// ***** ต้องแก้ตรงนี้: ใส่ LIFF ID ที่ได้จาก LINE Developers Console *****
+const LIFF_ID = '2011572396-045t5T5l';
+
+let idToken = null;
+let currentTab = 'today';
+let catsCache = [];
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.status === 204 ? null : res.json();
+}
+
+async function init() {
+  await liff.init({ liffId: LIFF_ID });
+  if (!liff.isLoggedIn()) {
+    liff.login();
+    return;
+  }
+  idToken = liff.getIDToken();
+  await showTab('today');
+}
+
+function showTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tabbar button').forEach((b) => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'today') renderToday();
+  if (tab === 'cats') renderCats();
+  if (tab === 'settings') renderSettings();
+}
+
+// ===== หน้า "วันนี้" =====
+async function renderToday() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="sub">กำลังโหลด...</div>';
+  const items = await api('/api/today');
+
+  if (items.length === 0) {
+    app.innerHTML = `
+      <h1>วันนี้ต้องทำ</h1>
+      <div class="empty">วันนี้ไม่มีอะไรต้องทำแล้ว 🎉</div>
+    `;
+    return;
+  }
+
+  app.innerHTML = `
+    <h1>วันนี้ต้องทำ</h1>
+    <div class="sub">${items.length} รายการ</div>
+    <div class="card">
+      ${items.map((it) => `
+        <div class="routine-row">
+          <span><span class="cat-name">${it.cat_name}</span> — ${it.title}</span>
+          <button class="done" onclick="completeRoutine(${it.id})">ทำแล้ว</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function completeRoutine(routineId) {
+  await api(`/api/routines/${routineId}/complete`, { method: 'POST' });
+  renderToday();
+}
+
+// ===== หน้า "แมวของฉัน" =====
+async function renderCats() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="sub">กำลังโหลด...</div>';
+  catsCache = await api('/api/cats');
+
+  const catsHtml = catsCache.length === 0
+    ? '<div class="empty">ยังไม่มีแมว เพิ่มตัวแรกกันเลย</div>'
+    : (await Promise.all(catsCache.map(renderCatCard))).join('');
+
+  app.innerHTML = `
+    <h1>แมวของฉัน</h1>
+    ${catsHtml}
+    <div class="card">
+      <h2>เพิ่มแมวตัวใหม่</h2>
+      <input id="newCatName" placeholder="ชื่อแมว">
+      <button class="primary" onclick="addCat()">เพิ่มแมว</button>
+    </div>
+  `;
+}
+
+async function renderCatCard(cat) {
+  const routines = await api(`/api/cats/${cat.id}/routines`);
+  const routinesHtml = routines.length === 0
+    ? '<div class="sub">ยังไม่มีกิจวัตร</div>'
+    : routines.map((r) => `<div class="routine-row"><span>${r.title}</span><span class="sub">ทุก ${r.frequency_days} วัน</span></div>`).join('');
+
+  return `
+    <div class="card">
+      <h2>${cat.name}</h2>
+      ${routinesHtml}
+      <div style="margin-top:10px;">
+        <input id="routineTitle-${cat.id}" placeholder="ชื่อกิจวัตร เช่น เช็ดตา">
+        <select id="routineFreq-${cat.id}">
+          <option value="1">ทุกวัน</option>
+          <option value="7">ทุกสัปดาห์</option>
+          <option value="30">ทุกเดือน</option>
+        </select>
+        <button class="ghost" onclick="addRoutine(${cat.id})">เพิ่มกิจวัตร</button>
+      </div>
+    </div>
+  `;
+}
+
+async function addCat() {
+  const name = document.getElementById('newCatName').value.trim();
+  if (!name) return;
+  await api('/api/cats', { method: 'POST', body: JSON.stringify({ name }) });
+  renderCats();
+}
+
+async function addRoutine(catId) {
+  const title = document.getElementById(`routineTitle-${catId}`).value.trim();
+  const frequency_days = parseInt(document.getElementById(`routineFreq-${catId}`).value, 10);
+  if (!title) return;
+  await api(`/api/cats/${catId}/routines`, {
+    method: 'POST',
+    body: JSON.stringify({ title, frequency_days }),
+  });
+  renderCats();
+}
+
+// ===== หน้า "ตั้งค่า" =====
+async function renderSettings() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="sub">กำลังโหลด...</div>';
+  const me = await api('/api/me');
+
+  app.innerHTML = `
+    <h1>ตั้งค่า</h1>
+    <div class="card">
+      <div class="toggle">
+        <span>แจ้งเตือนรายวันผ่าน LINE</span>
+        <div class="switch ${me.daily_reminder_enabled ? 'on' : ''}" id="reminderSwitch" onclick="toggleReminder(${me.daily_reminder_enabled})"></div>
+      </div>
+      <div class="sub" style="margin-top:8px;">ถ้าปิดไว้ ยังดูเช็คลิสต์วันนี้ได้ตามปกติในแท็บ "วันนี้"</div>
+    </div>
+  `;
+}
+
+async function toggleReminder(current) {
+  await api('/api/me/reminder', { method: 'PUT', body: JSON.stringify({ enabled: !current }) });
+  renderSettings();
+}
+
+init();
+</script>
+</body>
+</html>
