@@ -62,27 +62,46 @@ async function api(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`API error ${res.status} ที่ ${path}: ${body}`);
+  }
   return res.status === 204 ? null : res.json();
 }
 
 async function init() {
-  await liff.init({ liffId: LIFF_ID });
-  if (!liff.isLoggedIn()) {
-    liff.login();
-    return;
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+    idToken = liff.getIDToken();
+    await showTab('today');
+  } catch (err) {
+    document.getElementById('app').innerHTML = `
+      <h1>เกิดข้อผิดพลาด</h1>
+      <div class="card" style="color:#C4574B; word-break:break-all;">${err.message || err}</div>
+    `;
+    console.error(err);
   }
-  idToken = liff.getIDToken();
-  await showTab('today');
 }
 
-function showTab(tab) {
+async function showTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tabbar button').forEach((b) => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  if (tab === 'today') renderToday();
-  if (tab === 'cats') renderCats();
-  if (tab === 'settings') renderSettings();
+  try {
+    if (tab === 'today') await renderToday();
+    if (tab === 'cats') await renderCats();
+    if (tab === 'settings') await renderSettings();
+  } catch (err) {
+    document.getElementById('app').innerHTML = `
+      <h1>โหลดข้อมูลไม่สำเร็จ</h1>
+      <div class="card" style="color:#C4574B; word-break:break-all;">${err.message || err}</div>
+    `;
+    console.error(err);
+  }
 }
 
 // ===== หน้า "วันนี้" =====
