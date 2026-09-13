@@ -5,18 +5,23 @@ import Modal from './Modal'
 import WeightChart from './WeightChart'
 
 // ===== helpers =====
-function today() { return new Date().toISOString().split('T')[0] }
+// ใช้ toLocaleDateString('sv') เพื่อให้ได้ YYYY-MM-DD ตาม timezone ของ device (ไม่ใช่ UTC)
+function today() { return new Date().toLocaleDateString('sv') }
 
 function fmtDate(dateStr) {
   if (!dateStr) return ''
-  const d = new Date(dateStr)
+  // slice 10 ตัวแรก (YYYY-MM-DD) แล้วต่อ T00:00:00 ให้ JS ตีความเป็น local midnight ไม่ใช่ UTC midnight
+  const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00')
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function isDueSoon(dateStr) {
   if (!dateStr) return false
-  const diff = (new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24)
-  return diff <= 7
+  // เปรียบเทียบ YYYY-MM-DD string ตรง ๆ ไม่ผ่าน Date object เพื่อกัน timezone shift
+  const target = String(dateStr).slice(0, 10)
+  const todayStr = new Date().toLocaleDateString('sv')
+  const limitStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('sv')
+  return target >= todayStr && target <= limitStr
 }
 
 // ===== กิจวัตร panel =====

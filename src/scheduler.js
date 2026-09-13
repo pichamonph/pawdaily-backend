@@ -12,9 +12,12 @@ function isDue(lastDoneAt, frequencyDays) {
 }
 
 async function run() {
-  // แปลงเวลาปัจจุบันเป็นเวลาไทย (UTC+7) แล้วดึงชั่วโมง
-  const thaiHour = new Date(Date.now() + 7 * 60 * 60 * 1000).getUTCHours();
-  console.log(`scheduler รัน ชั่วโมงไทยปัจจุบัน: ${thaiHour}`);
+  // แปลงเวลาปัจจุบันเป็นเวลาไทย (UTC+7) แล้วดึงชั่วโมงและวันที่
+  const nowThai = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  const thaiHour = nowThai.getUTCHours();
+  const thaiDateStr = nowThai.toISOString().slice(0, 10);
+  const tomorrowThaiStr = new Date(nowThai.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  console.log(`scheduler รัน วันไทย: ${thaiDateStr}, ชั่วโมงไทย: ${thaiHour}`);
 
   const usersResult = await query(
     `SELECT * FROM users
@@ -66,8 +69,19 @@ async function run() {
       if (lines.length > 0) lines.push('');
       lines.push('นัดหมอ/วัคซีนใกล้ถึง:');
       upcomingMedical.forEach((m) => {
-        const daysUntil = Math.ceil((new Date(m.next_due_date) - new Date()) / (1000 * 60 * 60 * 24));
-        const when = daysUntil <= 0 ? '(เลยกำหนดแล้ว)' : daysUntil === 1 ? '(พรุ่งนี้)' : `(อีก ${daysUntil} วัน)`;
+        // แปลง next_due_date เป็น YYYY-MM-DD string (pg อาจคืนมาเป็น Date object หรือ string)
+        const nextDueStr = m.next_due_date instanceof Date
+          ? m.next_due_date.toISOString().slice(0, 10)
+          : String(m.next_due_date).slice(0, 10);
+        // เปรียบเทียบ string ตรง ๆ ไม่ผ่าน Date arithmetic เพื่อกัน timezone shift
+        let when;
+        if (nextDueStr < thaiDateStr) when = '(เลยกำหนดแล้ว)';
+        else if (nextDueStr === thaiDateStr) when = '(วันนี้)';
+        else if (nextDueStr === tomorrowThaiStr) when = '(พรุ่งนี้)';
+        else {
+          const diffDays = Math.round((new Date(nextDueStr) - new Date(thaiDateStr)) / (1000 * 60 * 60 * 24));
+          when = `(อีก ${diffDays} วัน)`;
+        }
         lines.push(`• ${m.cat_name}: ${m.name} ${when}`);
       });
     }
