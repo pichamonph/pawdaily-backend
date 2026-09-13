@@ -182,9 +182,16 @@ app.get('/api/cats/:id/weight', requireLiffAuth, async (req, res) => {
   res.json(logs.rows);
 });
 
-// เสิร์ฟหน้าจอ LIFF (public/index.html และไฟล์ที่เกี่ยวข้อง)
+// เสิร์ฟหน้าจอ LIFF (build output จาก frontend/ หลังรัน npm run build)
 app.use(express.static(path.join(__dirname, '../public')));
 
+// fallback: ส่ง index.html สำหรับทุก path ที่ไม่ใช่ /api (รองรับ client-side routing ในอนาคต)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/webhook') || req.path === '/health') {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
 // เช็คว่าเซิร์ฟเวอร์ยังทำงานอยู่ไหม (ใช้เทสหลัง deploy)
 app.get('/health', (req, res) => res.send('PawDaily backend is running'));
 

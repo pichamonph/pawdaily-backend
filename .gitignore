@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Vite build output (rebuilt by Render on deploy)
+public/
+
+# OS / editor
+.DS_Store
+.vscode/
