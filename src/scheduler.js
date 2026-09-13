@@ -61,6 +61,95 @@ function buildCarousel(groups) {
   };
 }
 
+// สร้าง Flex bubble สำหรับนัดหมอ/วัคซีนใกล้ถึง (สีหัวต่างจากการ์ดกิจวัตรเพื่อแยกประเภท)
+function buildMedicalFlex(appointments, thaiDateStr, tomorrowThaiStr) {
+  const liffUrl = process.env.LIFF_URL || 'https://liff.line.me/';
+
+  const rowItems = [];
+  appointments.forEach((m, i) => {
+    const nextDueStr = m.next_due_date instanceof Date
+      ? m.next_due_date.toISOString().slice(0, 10)
+      : String(m.next_due_date).slice(0, 10);
+
+    let whenLabel;
+    let urgent = false;
+    if (nextDueStr < thaiDateStr) { whenLabel = 'เลยกำหนดแล้ว'; urgent = true; }
+    else if (nextDueStr === thaiDateStr) { whenLabel = 'วันนี้'; urgent = true; }
+    else if (nextDueStr === tomorrowThaiStr) whenLabel = 'พรุ่งนี้';
+    else {
+      const diffDays = Math.round((new Date(nextDueStr) - new Date(thaiDateStr)) / (1000 * 60 * 60 * 24));
+      whenLabel = `อีก ${diffDays} วัน`;
+    }
+
+    if (i > 0) rowItems.push({ type: 'separator' });
+    rowItems.push({
+      type: 'box',
+      layout: 'horizontal',
+      alignItems: 'center',
+      paddingTop: '10px',
+      paddingBottom: '10px',
+      contents: [
+        {
+          type: 'box',
+          layout: 'vertical',
+          flex: 1,
+          spacing: 'xs',
+          contents: [
+            { type: 'text', text: m.cat_name, size: 'xs', color: '#888888' },
+            { type: 'text', text: m.name, size: 'sm', wrap: true, color: '#333333' },
+          ],
+        },
+        {
+          type: 'text',
+          text: whenLabel,
+          size: 'sm',
+          color: urgent ? '#C86E7A' : '#4A5D80',
+          weight: urgent ? 'bold' : 'regular',
+          align: 'end',
+          flex: 0,
+        },
+      ],
+    });
+  });
+
+  return {
+    type: 'flex',
+    altText: `PawDaily: นัดหมาย ${appointments.length} รายการใกล้ถึง`,
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#E3982E',
+        paddingAll: '14px',
+        contents: [
+          { type: 'text', text: 'นัดหมอ / วัคซีนใกล้ถึง', weight: 'bold', size: 'lg', color: '#FFFFFF' },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '12px',
+        contents: rowItems,
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '12px',
+        paddingTop: '4px',
+        contents: [
+          {
+            type: 'button',
+            action: { type: 'uri', label: 'ดูรายละเอียด', uri: liffUrl },
+            style: 'secondary',
+            height: 'sm',
+          },
+        ],
+      },
+    },
+  };
+}
+
 async function run() {
   // แปลงเวลาปัจจุบันเป็นเวลาไทย (UTC+7) แล้วดึงชั่วโมงและวันที่
   const nowThai = new Date(Date.now() + 7 * 60 * 60 * 1000);
@@ -122,24 +211,9 @@ async function run() {
       messages.push(buildCarousel(Object.values(grouped)));
     }
 
-    // Text message สำหรับนัดหมอ/วัคซีน (ส่งแยกต่างหากในครั้งเดียวกัน)
+    // Flex bubble สำหรับนัดหมอ/วัคซีน — สีหัวต่างจากการ์ดกิจวัตรเพื่อแยกประเภท
     if (upcomingMedical.length > 0) {
-      const lines = ['นัดหมอ/วัคซีนใกล้ถึง:'];
-      upcomingMedical.forEach((m) => {
-        const nextDueStr = m.next_due_date instanceof Date
-          ? m.next_due_date.toISOString().slice(0, 10)
-          : String(m.next_due_date).slice(0, 10);
-        let when;
-        if (nextDueStr < thaiDateStr) when = '(เลยกำหนดแล้ว)';
-        else if (nextDueStr === thaiDateStr) when = '(วันนี้)';
-        else if (nextDueStr === tomorrowThaiStr) when = '(พรุ่งนี้)';
-        else {
-          const diffDays = Math.round((new Date(nextDueStr) - new Date(thaiDateStr)) / (1000 * 60 * 60 * 24));
-          when = `(อีก ${diffDays} วัน)`;
-        }
-        lines.push(`• ${m.cat_name}: ${m.name} ${when}`);
-      });
-      messages.push({ type: 'text', text: lines.join('\n') });
+      messages.push(buildMedicalFlex(upcomingMedical, thaiDateStr, tomorrowThaiStr));
     }
 
     try {
