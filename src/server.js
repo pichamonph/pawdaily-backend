@@ -4,7 +4,7 @@ const path = require('path');
 const line = require('@line/bot-sdk');
 const multer = require('multer');
 const { query, findOrCreateUser } = require('./db');
-const { middlewareConfig, requireLiffAuth } = require('./line');
+const { client, middlewareConfig, requireLiffAuth } = require('./line');
 
 const app = express();
 
@@ -30,6 +30,20 @@ async function handleEvent(event) {
   if (!lineUserId) return;
   if (event.type === 'follow' || event.type === 'message') {
     await findOrCreateUser(lineUserId, null);
+  } else if (event.type === 'postback') {
+    const params = new URLSearchParams(event.postback.data);
+    if (params.get('action') === 'complete_routine') {
+      const routine = await completeRoutine(params.get('routine_id'), lineUserId);
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: routine
+            ? `${routine.title} — บันทึกแล้ว ✓`
+            : 'ไม่พบกิจวัตร หรือกิจวัตรนี้ไม่ใช่ของคุณ',
+        }],
+      });
+    }
   }
 }
 
@@ -85,6 +99,29 @@ app.post('/api/cats', requireLiffAuth, async (req, res) => {
   res.status(201).json(inserted.rows[0]);
 });
 
+// ฟังก์ชันกลางสำหรับบันทึกกิจวัตรสำเร็จ — ใช้ร่วมกันระหว่าง REST API และ webhook postback
+// idempotent: ถ้าทำแล้ววันนี้ (CURRENT_DATE) อยู่แล้วจะไม่ insert log ซ้ำ
+async function completeRoutine(routineId, lineUserId) {
+  const result = await query(
+    `SELECT routines.* FROM routines
+     JOIN cats ON cats.id = routines.cat_id
+     JOIN users ON users.id = cats.owner_id
+     WHERE routines.id = $1 AND users.line_user_id = $2`,
+    [routineId, lineUserId]
+  );
+  const routine = result.rows[0];
+  if (!routine) return null;
+  const alreadyDone = await query(
+    'SELECT 1 FROM routines WHERE id = $1 AND last_done_at = CURRENT_DATE',
+    [routine.id]
+  );
+  if (alreadyDone.rows.length === 0) {
+    await query('INSERT INTO routine_logs (routine_id) VALUES ($1)', [routine.id]);
+    await query('UPDATE routines SET last_done_at = CURRENT_DATE WHERE id = $1', [routine.id]);
+  }
+  return routine;
+}
+
 async function assertOwnsCat(lineUserId, catId) {
   const result = await query(
     `SELECT cats.* FROM cats
@@ -123,20 +160,9 @@ app.post('/api/cats/:id/routines', requireLiffAuth, async (req, res) => {
 
 // POST /api/routines/:id/complete
 app.post('/api/routines/:id/complete', requireLiffAuth, async (req, res) => {
-  const result = await query(
-    `SELECT routines.* FROM routines
-     JOIN cats ON cats.id = routines.cat_id
-     JOIN users ON users.id = cats.owner_id
-     WHERE routines.id = $1 AND users.line_user_id = $2`,
-    [req.params.id, req.lineUserId]
-  );
-  const routine = result.rows[0];
+  const routine = await completeRoutine(req.params.id, req.lineUserId);
   if (!routine) return res.status(404).json({ error: 'routine not found' });
-  await query('INSERT INTO routine_logs (routine_id) VALUES ($1)', [routine.id]);
-  const updated = await query(
-    'UPDATE routines SET last_done_at = CURRENT_DATE WHERE id = $1 RETURNING *',
-    [routine.id]
-  );
+  const updated = await query('SELECT * FROM routines WHERE id = $1', [routine.id]);
   res.json(updated.rows[0]);
 });
 

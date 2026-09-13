@@ -2,13 +2,63 @@
 // หน้าที่: ส่งสรุปกิจวัตรประจำวันให้ผู้ใช้ที่เลือกเวลาแจ้งเตือนตรงกับชั่วโมงปัจจุบัน (เวลาไทย)
 require('dotenv').config();
 const { query, pool } = require('./db');
-const { pushMessage } = require('./line');
+const { client } = require('./line');
 
 function isDue(lastDoneAt, frequencyDays) {
   if (!lastDoneAt) return true;
   const last = new Date(lastDoneAt);
   const daysSince = Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24));
   return daysSince >= frequencyDays;
+}
+
+// สร้าง Flex Carousel 1 bubble ต่อ 1 แมว แต่ละแถวมีปุ่ม "ทำแล้ว" แบบ postback
+function buildCarousel(groups) {
+  const totalItems = groups.reduce((n, g) => n + g.routines.length, 0);
+  const bubbles = groups.map(({ catName, routines }) => ({
+    type: 'bubble',
+    header: {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: '#2E4060',
+      paddingAll: '14px',
+      contents: [
+        { type: 'text', text: catName, weight: 'bold', size: 'lg', color: '#FFFFFF' },
+      ],
+    },
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'md',
+      paddingAll: '12px',
+      contents: routines.map(r => ({
+        type: 'box',
+        layout: 'horizontal',
+        alignItems: 'center',
+        spacing: 'sm',
+        contents: [
+          { type: 'text', text: r.title, size: 'sm', flex: 1, wrap: true, color: '#333333' },
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: 'ทำแล้ว',
+              data: `action=complete_routine&routine_id=${r.id}`,
+            },
+            style: 'primary',
+            color: '#DD8C96',
+            height: 'sm',
+            flex: 0,
+          },
+        ],
+      })),
+    },
+  }));
+
+  return {
+    type: 'flex',
+    altText: `PawDaily: กิจวัตรวันนี้ ${totalItems} รายการ`,
+    contents: { type: 'carousel', contents: bubbles },
+  };
 }
 
 async function run() {
@@ -34,12 +84,14 @@ async function run() {
   }
 
   for (const user of usersResult.rows) {
-    // กิจวัตรถึงกำหนดวันนี้
+    // ดึง routines.id ด้วยเพื่อใส่ใน postback data
     const routinesResult = await query(
-      `SELECT routines.title, routines.frequency_days, routines.last_done_at, cats.name AS cat_name
+      `SELECT routines.id, routines.title, routines.frequency_days, routines.last_done_at,
+              cats.id AS cat_id, cats.name AS cat_name
        FROM routines
        JOIN cats ON cats.id = routines.cat_id
-       WHERE cats.owner_id = $1 AND routines.active = TRUE`,
+       WHERE cats.owner_id = $1 AND routines.active = TRUE
+       ORDER BY cats.id, routines.id`,
       [user.id]
     );
     const due = routinesResult.rows.filter((r) => isDue(r.last_done_at, r.frequency_days));
@@ -58,22 +110,25 @@ async function run() {
 
     if (due.length === 0 && upcomingMedical.length === 0) continue;
 
-    const lines = [];
+    const messages = [];
 
+    // Flex Carousel สำหรับกิจวัตร แยกการ์ดตามแมว
     if (due.length > 0) {
-      lines.push('วันนี้ต้องทำ:');
-      due.forEach((r) => lines.push(`• ${r.cat_name}: ${r.title}`));
+      const grouped = {};
+      due.forEach(r => {
+        if (!grouped[r.cat_id]) grouped[r.cat_id] = { catName: r.cat_name, routines: [] };
+        grouped[r.cat_id].routines.push(r);
+      });
+      messages.push(buildCarousel(Object.values(grouped)));
     }
 
+    // Text message สำหรับนัดหมอ/วัคซีน (ส่งแยกต่างหากในครั้งเดียวกัน)
     if (upcomingMedical.length > 0) {
-      if (lines.length > 0) lines.push('');
-      lines.push('นัดหมอ/วัคซีนใกล้ถึง:');
+      const lines = ['นัดหมอ/วัคซีนใกล้ถึง:'];
       upcomingMedical.forEach((m) => {
-        // แปลง next_due_date เป็น YYYY-MM-DD string (pg อาจคืนมาเป็น Date object หรือ string)
         const nextDueStr = m.next_due_date instanceof Date
           ? m.next_due_date.toISOString().slice(0, 10)
           : String(m.next_due_date).slice(0, 10);
-        // เปรียบเทียบ string ตรง ๆ ไม่ผ่าน Date arithmetic เพื่อกัน timezone shift
         let when;
         if (nextDueStr < thaiDateStr) when = '(เลยกำหนดแล้ว)';
         else if (nextDueStr === thaiDateStr) when = '(วันนี้)';
@@ -84,13 +139,11 @@ async function run() {
         }
         lines.push(`• ${m.cat_name}: ${m.name} ${when}`);
       });
+      messages.push({ type: 'text', text: lines.join('\n') });
     }
 
-    lines.push('');
-    lines.push('เปิดแอปเพื่อดูรายละเอียด');
-
     try {
-      await pushMessage(user.line_user_id, lines.join('\n'));
+      await client.pushMessage({ to: user.line_user_id, messages });
       console.log(`ส่งแจ้งเตือนให้ user ${user.id} แล้ว (กิจวัตร: ${due.length}, นัดหมอ: ${upcomingMedical.length})`);
     } catch (err) {
       console.error(`ส่งแจ้งเตือนให้ user ${user.id} ไม่สำเร็จ:`, err.message);
