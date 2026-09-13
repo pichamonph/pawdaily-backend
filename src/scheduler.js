@@ -57,7 +57,9 @@ function buildCarousel(groups) {
   return {
     type: 'flex',
     altText: `PawDaily: กิจวัตรวันนี้ ${totalItems} รายการ`,
-    contents: { type: 'carousel', contents: bubbles },
+    contents: bubbles.length === 1
+      ? bubbles[0]
+      : { type: 'carousel', contents: bubbles },
   };
 }
 
