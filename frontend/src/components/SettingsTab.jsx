@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Bell, CreditCard } from 'lucide-react'
+import { Bell, Clock, CreditCard } from 'lucide-react'
 import { api } from '../api'
 
 function fmtDate(dateStr) {
@@ -7,6 +7,9 @@ function fmtDate(dateStr) {
   const d = new Date(dateStr)
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
 }
+
+// ตัวเลือกเวลา 06:00–22:00
+const HOUR_OPTIONS = Array.from({ length: 17 }, (_, i) => i + 6)
 
 export default function SettingsTab() {
   const [me, setMe] = useState(null)
@@ -25,7 +28,22 @@ export default function SettingsTab() {
     try {
       const updated = await api('/api/me/reminder', {
         method: 'PUT',
-        body: JSON.stringify({ enabled: !me.daily_reminder_enabled }),
+        body: JSON.stringify({
+          enabled: !me.daily_reminder_enabled,
+          preferred_reminder_hour: me.preferred_reminder_hour ?? 8,
+        }),
+      })
+      setMe(updated)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function changeHour(h) {
+    try {
+      const updated = await api('/api/me/reminder', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: me.daily_reminder_enabled, preferred_reminder_hour: h }),
       })
       setMe(updated)
     } catch (err) {
@@ -34,6 +52,8 @@ export default function SettingsTab() {
   }
 
   if (loading) return <div className="sub">กำลังโหลด...</div>
+
+  const currentHour = me?.preferred_reminder_hour ?? 8
 
   return (
     <>
@@ -52,6 +72,24 @@ export default function SettingsTab() {
                 onClick={toggle}
               />
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+              <Clock size={16} strokeWidth={1.8} color="var(--rhino-dim)" />
+              <span style={{ fontSize: 13.5, flex: 1, color: me.daily_reminder_enabled ? 'var(--rhino)' : 'var(--rhino-dim)' }}>
+                เวลาที่จะแจ้งเตือน
+              </span>
+              <select
+                value={currentHour}
+                onChange={e => changeHour(parseInt(e.target.value, 10))}
+                disabled={!me.daily_reminder_enabled}
+                style={{ width: 'auto', marginBottom: 0, minWidth: 90 }}
+              >
+                {HOUR_OPTIONS.map(h => (
+                  <option key={h} value={h}>{String(h).padStart(2, '0')}:00 น.</option>
+                ))}
+              </select>
+            </div>
+
             <div className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
               ถ้าปิดไว้ ยังดูเช็คลิสต์วันนี้ได้ตามปกติในแท็บ "วันนี้"
             </div>

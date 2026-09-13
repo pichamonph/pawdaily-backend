@@ -1,5 +1,5 @@
-// สคริปต์นี้ตั้งใจให้รันวันละ 1 ครั้ง (ผ่าน Render Cron Job)
-// หน้าที่: ไล่เช็คทุก user ว่าวันนี้แมวตัวไหนต้องทำอะไร + มีนัดหมอ/วัคซีนใกล้ถึงไหม แล้วส่งสรุปเข้า LINE
+// สคริปต์นี้ตั้งใจให้รันทุกชั่วโมง (Render Cron Job: 0 * * * *)
+// หน้าที่: ส่งสรุปกิจวัตรประจำวันให้ผู้ใช้ที่เลือกเวลาแจ้งเตือนตรงกับชั่วโมงปัจจุบัน (เวลาไทย)
 require('dotenv').config();
 const { query, pool } = require('./db');
 const { pushMessage } = require('./line');
@@ -12,11 +12,23 @@ function isDue(lastDoneAt, frequencyDays) {
 }
 
 async function run() {
+  // แปลงเวลาปัจจุบันเป็นเวลาไทย (UTC+7) แล้วดึงชั่วโมง
+  const thaiHour = new Date(Date.now() + 7 * 60 * 60 * 1000).getUTCHours();
+  console.log(`scheduler รัน ชั่วโมงไทยปัจจุบัน: ${thaiHour}`);
+
   const usersResult = await query(
     `SELECT * FROM users
      WHERE daily_reminder_enabled = TRUE
-       AND (membership_expires_at IS NULL OR membership_expires_at >= CURRENT_DATE)`
+       AND preferred_reminder_hour = $1
+       AND (membership_expires_at IS NULL OR membership_expires_at >= CURRENT_DATE)`,
+    [thaiHour]
   );
+
+  if (usersResult.rows.length === 0) {
+    console.log('ไม่มีผู้ใช้ที่ตั้งเวลาแจ้งเตือนตรงกับชั่วโมงนี้');
+    await pool.end();
+    return;
+  }
 
   for (const user of usersResult.rows) {
     // กิจวัตรถึงกำหนดวันนี้

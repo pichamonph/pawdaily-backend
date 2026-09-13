@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "scheduler": "node src/scheduler.js"
+    "scheduler": "node src/scheduler.js",
+    "appointment-scheduler": "node src/appointment-scheduler.js"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.4.2",

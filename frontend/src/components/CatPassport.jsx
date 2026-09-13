@@ -319,6 +319,7 @@ function AddMedicalModal({ catId, onDone, onClose }) {
   const [name, setName] = useState('')
   const [eventDate, setEventDate] = useState(today())
   const [nextDue, setNextDue] = useState('')
+  const [nextDueTime, setNextDueTime] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState(null)
 
@@ -329,7 +330,9 @@ function AddMedicalModal({ catId, onDone, onClose }) {
         method: 'POST',
         body: JSON.stringify({
           type, name: name.trim(), event_date: eventDate,
-          next_due_date: nextDue || undefined, note: note || undefined,
+          next_due_date: nextDue || undefined,
+          next_due_time: nextDueTime || undefined,
+          note: note || undefined,
         }),
       })
       onDone()
@@ -349,6 +352,8 @@ function AddMedicalModal({ catId, onDone, onClose }) {
       <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} />
       <label className="form-label">นัดครั้งถัดไป (ถ้ามี)</label>
       <input type="date" value={nextDue} onChange={e => setNextDue(e.target.value)} />
+      <label className="form-label">เวลานัด (ถ้าต้องการให้เตือนตรงเวลา)</label>
+      <input type="time" value={nextDueTime} onChange={e => setNextDueTime(e.target.value)} disabled={!nextDue} />
       <label className="form-label">หมายเหตุ</label>
       <input value={note} onChange={e => setNote(e.target.value)} placeholder="หมายเหตุ (ถ้ามี)" />
       <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>

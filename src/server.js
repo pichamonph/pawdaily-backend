@@ -43,11 +43,20 @@ app.get('/api/me', requireLiffAuth, async (req, res) => {
 
 // PUT /api/me/reminder
 app.put('/api/me/reminder', requireLiffAuth, async (req, res) => {
-  const { enabled } = req.body;
+  const { enabled, preferred_reminder_hour } = req.body;
+  if (preferred_reminder_hour !== undefined) {
+    const h = parseInt(preferred_reminder_hour, 10);
+    if (isNaN(h) || h < 0 || h > 23) {
+      return res.status(400).json({ error: 'preferred_reminder_hour must be 0–23' });
+    }
+  }
   const user = await findOrCreateUser(req.lineUserId, null);
   const updated = await query(
-    'UPDATE users SET daily_reminder_enabled = $1 WHERE id = $2 RETURNING *',
-    [!!enabled, user.id]
+    `UPDATE users
+     SET daily_reminder_enabled = $1,
+         preferred_reminder_hour = COALESCE($2::smallint, preferred_reminder_hour)
+     WHERE id = $3 RETURNING *`,
+    [!!enabled, preferred_reminder_hour !== undefined ? parseInt(preferred_reminder_hour, 10) : null, user.id]
   );
   res.json(updated.rows[0]);
 });
@@ -269,13 +278,13 @@ app.get('/api/cats/:id/expenses', requireLiffAuth, async (req, res) => {
 app.post('/api/cats/:id/medical-events', requireLiffAuth, async (req, res) => {
   const cat = await assertOwnsCat(req.lineUserId, req.params.id);
   if (!cat) return res.status(404).json({ error: 'cat not found' });
-  const { type, name, event_date, next_due_date, note } = req.body;
+  const { type, name, event_date, next_due_date, note, next_due_time } = req.body;
   if (!type || !name || !event_date) {
     return res.status(400).json({ error: 'type, name, and event_date are required' });
   }
   const inserted = await query(
-    'INSERT INTO medical_events (cat_id, type, name, event_date, next_due_date, note) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-    [cat.id, type, name, event_date, next_due_date || null, note || null]
+    'INSERT INTO medical_events (cat_id, type, name, event_date, next_due_date, note, next_due_time) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+    [cat.id, type, name, event_date, next_due_date || null, note || null, next_due_time || null]
   );
   res.status(201).json(inserted.rows[0]);
 });
