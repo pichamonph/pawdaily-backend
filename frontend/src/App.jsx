@@ -7,6 +7,12 @@ import SettingsTab from './components/SettingsTab'
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID
 
+const TABS = [
+  { id: 'today',    icon: '☀️', label: 'วันนี้' },
+  { id: 'cats',     icon: '🐾', label: 'แมวของฉัน' },
+  { id: 'settings', icon: '⚙️', label: 'ตั้งค่า' },
+]
+
 export default function App() {
   const [tab, setTab] = useState('today')
   const [ready, setReady] = useState(false)
@@ -20,50 +26,48 @@ export default function App() {
     liff
       .init({ liffId: LIFF_ID })
       .then(() => {
-        if (!liff.isLoggedIn()) {
-          liff.login()
-          return
-        }
+        if (!liff.isLoggedIn()) { liff.login(); return }
         setTokenGetter(() => liff.getIDToken())
         setReady(true)
       })
       .catch((err) => setError(`LIFF init ล้มเหลว: ${err.message}`))
   }, [])
 
-  if (error) {
-    return (
-      <div className="wrap">
-        <h1>PawDaily</h1>
-        <div className="error-msg">{error}</div>
-      </div>
-    )
-  }
+  const header = <header className="app-header">🐾 PawDaily</header>
 
-  if (!ready) {
-    return (
-      <div className="wrap">
-        <div className="sub">กำลังโหลด...</div>
-      </div>
-    )
-  }
+  if (error) return (
+    <>
+      {header}
+      <div className="wrap"><div className="error-msg">{error}</div></div>
+    </>
+  )
+
+  if (!ready) return (
+    <>
+      {header}
+      <div className="wrap"><div className="sub">กำลังโหลด...</div></div>
+    </>
+  )
 
   return (
     <>
+      {header}
       <div className="wrap">
-        {tab === 'today' && <TodayTab />}
-        {tab === 'cats' && <CatsTab />}
+        {tab === 'today'    && <TodayTab />}
+        {tab === 'cats'     && <CatsTab />}
         {tab === 'settings' && <SettingsTab />}
       </div>
       <div className="tabbar">
-        <button className={tab === 'today' ? 'active' : ''} onClick={() => setTab('today')}>
-          วันนี้
-        </button>
-        <button className={tab === 'cats' ? 'active' : ''} onClick={() => setTab('cats')}>
-          แมวของฉัน
-        </button>
-        <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>
-          ตั้งค่า
-        </button>
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            className={tab === t.id ? 'active' : ''}
+            onClick={() => setTab(t.id)}
+          >
+            <span className="tab-icon">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
       </div>
     </>
   )

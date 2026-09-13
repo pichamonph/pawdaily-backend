@@ -14,18 +14,37 @@ body {
   background: var(--almond);
   color: var(--rhino);
   font-family: 'Kanit', -apple-system, sans-serif;
-  padding-bottom: 70px;
+  padding-bottom: 72px;
 }
 
+/* ===== App Header ===== */
+.app-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 48px;
+  background: #fff;
+  border-bottom: 1px solid var(--almond-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--rhino);
+  z-index: 100;
+  letter-spacing: 0.01em;
+}
+
+/* ===== Main content area ===== */
 .wrap {
   max-width: 480px;
   margin: 0 auto;
   padding: 16px;
+  padding-top: 64px;
 }
 
 h1 {
-  font-size: 20px;
-  margin: 8px 0 4px;
+  font-size: 18px;
+  margin: 4px 0 8px;
   color: var(--rhino);
   font-weight: 600;
 }
@@ -33,39 +52,53 @@ h1 {
 .sub {
   font-size: 12.5px;
   color: var(--rhino-dim);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
+/* ===== Cards ===== */
 .card {
   background: #fff;
   border: 1px solid var(--almond-dim);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
+  box-shadow: 0 1px 4px rgba(46, 64, 96, 0.07);
 }
 
 .card h2 {
   font-size: 15px;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   color: var(--rhino);
   font-weight: 600;
 }
 
+/* ===== Cat name badge (in today list) ===== */
 .cat-name {
   font-weight: 600;
   font-size: 14px;
 }
 
+/* ===== Routine rows ===== */
 .routine-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: 9px 0;
   border-bottom: 1px solid var(--almond-dim);
+  overflow: hidden;
 }
-
 .routine-row:last-child { border-bottom: none; }
 
+@keyframes fadeSlide {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(28px); }
+}
+.routine-row.completing {
+  animation: fadeSlide 0.32s ease forwards;
+  pointer-events: none;
+}
+
+/* ===== Buttons ===== */
 button {
   font-family: 'Kanit', sans-serif;
   cursor: pointer;
@@ -85,6 +118,7 @@ button.primary:hover { background: var(--rhino-dim); }
 button.done {
   background: var(--dull-pink);
   color: #fff;
+  white-space: nowrap;
 }
 button.done:hover { background: var(--pink-dark); }
 
@@ -94,30 +128,60 @@ button.ghost {
 }
 button.ghost:hover { background: var(--dull-pink); color: #fff; }
 
+button.accent {
+  background: var(--dull-pink);
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+button.accent:hover { background: var(--pink-dark); }
+
+/* ===== Inputs ===== */
 input, select {
   width: 100%;
   padding: 9px 10px;
-  border: 1px solid var(--almond-dim);
+  border: 1px solid rgba(74, 93, 128, 0.3);
   border-radius: 6px;
   font-size: 14px;
   margin-bottom: 8px;
-  background: var(--almond-dim);
+  background: #fff;
   font-family: 'Kanit', sans-serif;
   color: var(--rhino);
   outline: none;
+  transition: border-color 0.15s;
 }
-
 input:focus, select:focus {
   border-color: var(--dull-pink);
+  box-shadow: 0 0 0 2px rgba(221, 140, 150, 0.18);
+}
+
+/* ===== Empty states ===== */
+.empty-state {
+  text-align: center;
+  padding: 36px 16px 24px;
+}
+.empty-state .empty-icon { font-size: 60px; line-height: 1; }
+.empty-state .empty-title {
+  font-weight: 600;
+  font-size: 16px;
+  margin-top: 12px;
+  color: var(--rhino);
+}
+.empty-state .empty-sub {
+  font-size: 13px;
+  color: var(--rhino-dim);
+  margin-top: 4px;
 }
 
 .empty {
   text-align: center;
   color: var(--rhino-dim);
   font-size: 13.5px;
-  padding: 20px 10px;
+  padding: 14px 10px;
 }
 
+/* ===== Error ===== */
 .error-msg {
   background: #fee2e2;
   color: #b91c1c;
@@ -127,11 +191,34 @@ input:focus, select:focus {
   font-size: 13.5px;
 }
 
+/* ===== Section divider inside card ===== */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rhino-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 16px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--almond-dim);
+}
+
+/* ===== Weight form ===== */
+.weight-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.weight-form-row input {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ===== Tabbar ===== */
 .tabbar {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   background: #fff;
   border-top: 1px solid var(--almond-dim);
   display: flex;
@@ -141,20 +228,26 @@ input:focus, select:focus {
   flex: 1;
   background: none;
   border-radius: 0;
-  padding: 12px;
-  font-size: 13px;
+  padding: 7px 4px 10px;
+  font-size: 11px;
   color: var(--rhino-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
-
+.tabbar button .tab-icon { font-size: 22px; line-height: 1.1; }
 .tabbar button.active {
   color: var(--rhino);
   font-weight: 600;
 }
 
+/* ===== Toggle switch ===== */
 .toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .switch {
@@ -167,19 +260,14 @@ input:focus, select:focus {
   transition: background 0.15s;
   flex-shrink: 0;
 }
-
 .switch.on { background: var(--dull-pink); }
-
 .switch::after {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
+  top: 2px; left: 2px;
+  width: 20px; height: 20px;
   background: #fff;
   border-radius: 50%;
   transition: left 0.15s;
 }
-
 .switch.on::after { left: 22px; }
