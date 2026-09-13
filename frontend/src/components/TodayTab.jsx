@@ -3,6 +3,23 @@ import { CheckCircle2 } from 'lucide-react'
 import { api } from '../api'
 import CatAvatar from './CatAvatar'
 
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'สวัสดีตอนเช้า'
+  if (h < 17) return 'สวัสดีตอนบ่าย'
+  return 'สวัสดีตอนเย็น'
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return Infinity
+  const last = new Date(dateStr)
+  return Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function isOverdue(item) {
+  return item.last_done_at && daysSince(item.last_done_at) > item.frequency_days * 2
+}
+
 export default function TodayTab() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -40,9 +57,24 @@ export default function TodayTab() {
 
   if (loading) return <div className="sub">กำลังโหลด...</div>
 
+  // Group by cat_id
+  const grouped = {}
+  items.forEach(it => {
+    if (!grouped[it.cat_id]) grouped[it.cat_id] = { name: it.cat_name, items: [] }
+    grouped[it.cat_id].items.push(it)
+  })
+
   return (
     <>
-      <h1>วันนี้ต้องทำ</h1>
+      <div className="greeting-card">
+        <div className="greeting-text">{greeting()}</div>
+        <div className="greeting-sub">
+          {items.length > 0
+            ? `มี ${items.length} รายการที่ต้องดูแลวันนี้`
+            : 'วันนี้ดูแลครบแล้ว!'}
+        </div>
+      </div>
+
       {error && <div className="error-msg">โหลดไม่ได้: {error}</div>}
 
       {!error && items.length === 0 && (
@@ -53,28 +85,29 @@ export default function TodayTab() {
         </div>
       )}
 
-      {items.length > 0 && (
-        <>
-          <div className="sub">{items.length} รายการ</div>
-          <div className="card">
-            {items.map((it) => (
+      {Object.entries(grouped).map(([catId, group]) => (
+        <div key={catId} style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <CatAvatar name={group.name} size={24} />
+            <span className="cat-name">{group.name}</span>
+          </div>
+          <div className="card" style={{ padding: 0 }}>
+            {group.items.map(it => (
               <div
                 key={it.id}
                 className={`routine-row${completing.has(it.id) ? ' completing' : ''}`}
+                style={{ padding: '10px 16px' }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  <CatAvatar name={it.cat_name} size={30} />
-                  <span style={{ minWidth: 0 }}>
-                    <span className="cat-name">{it.cat_name}</span>
-                    <span style={{ color: 'var(--rhino-dim)', fontSize: 13 }}> — {it.title}</span>
-                  </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+                  {isOverdue(it) && <span className="overdue-badge">เลยกำหนด</span>}
+                  <span style={{ fontSize: 14 }}>{it.title}</span>
                 </span>
                 <button className="done" onClick={() => complete(it.id)}>ทำแล้ว</button>
               </div>
             ))}
           </div>
-        </>
-      )}
+        </div>
+      ))}
     </>
   )
 }

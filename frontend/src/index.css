@@ -128,7 +128,7 @@ input, select {
   padding: 9px 10px;
   border: 1px solid rgba(74, 93, 128, 0.3);
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 16px;
   margin-bottom: 8px;
   background: #fff;
   font-family: 'Kanit', sans-serif;
@@ -493,3 +493,56 @@ input[type="date"] { color-scheme: light; }
   transition: left 0.15s;
 }
 .switch.on::after { left: 22px; }
+
+/* ===== Greeting card (TodayTab) ===== */
+.greeting-card {
+  background: var(--rhino);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  color: #fff;
+}
+.greeting-text {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.greeting-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ===== Overdue badge ===== */
+.overdue-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: #dc2626;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* ===== Weight history table ===== */
+.weight-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.weight-table th {
+  text-align: left;
+  color: var(--rhino-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 0 4px;
+  border-bottom: 1px solid var(--almond-dim);
+}
+.weight-table td {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--almond-dim);
+  color: var(--rhino);
+}
+.weight-table tr:last-child td { border-bottom: none; }

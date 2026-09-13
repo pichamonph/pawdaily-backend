@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Camera, Plus, ListChecks, Scale, Stethoscope, Wallet, ImagePlus, Calendar } from 'lucide-react'
+import { Camera, Plus, ListChecks, Scale, Stethoscope, Wallet, ImagePlus, Calendar, Pencil } from 'lucide-react'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
 import WeightChart from './WeightChart'
@@ -94,6 +94,21 @@ function WeightPanel({ catId, version, onAdd }) {
       )}
       <WeightChart logs={logs} />
       {logs.length === 0 && <div className="empty">ยังไม่มีบันทึกน้ำหนัก</div>}
+      {logs.length > 0 && (
+        <table className="weight-table">
+          <thead>
+            <tr><th>วันที่</th><th>น้ำหนัก (kg)</th></tr>
+          </thead>
+          <tbody>
+            {[...logs].reverse().map(l => (
+              <tr key={l.id}>
+                <td>{fmtDate(l.recorded_at)}</td>
+                <td style={{ fontWeight: 600 }}>{parseFloat(l.weight_kg)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </>
   )
 }
@@ -228,6 +243,7 @@ function ExpensesPanel({ catId, version, onAdd }) {
 function AddRoutineModal({ catId, onDone, onClose }) {
   const [title, setTitle] = useState('')
   const [freq, setFreq] = useState('1')
+  const [lastDone, setLastDone] = useState('')
   const [error, setError] = useState(null)
 
   async function submit() {
@@ -235,7 +251,11 @@ function AddRoutineModal({ catId, onDone, onClose }) {
     try {
       await api(`/api/cats/${catId}/routines`, {
         method: 'POST',
-        body: JSON.stringify({ title: title.trim(), frequency_days: parseInt(freq, 10) }),
+        body: JSON.stringify({
+          title: title.trim(),
+          frequency_days: parseInt(freq, 10),
+          last_done_at: lastDone || undefined,
+        }),
       })
       onDone()
     } catch (e) { setError(e.message) }
@@ -252,6 +272,8 @@ function AddRoutineModal({ catId, onDone, onClose }) {
         <option value="7">ทุกสัปดาห์</option>
         <option value="30">ทุกเดือน</option>
       </select>
+      <label className="form-label">ทำล่าสุดเมื่อ (ถ้ามี)</label>
+      <input type="date" value={lastDone} onChange={e => setLastDone(e.target.value)} />
       <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
     </Modal>
   )
@@ -373,6 +395,45 @@ function AddExpenseModal({ catId, onDone, onClose }) {
   )
 }
 
+function EditCatModal({ cat, onDone, onClose }) {
+  const [name, setName] = useState(cat.name)
+  const [breed, setBreed] = useState(cat.breed || '')
+  const [birthday, setBirthday] = useState(cat.birthday ? cat.birthday.split('T')[0] : '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit() {
+    if (!name.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await api(`/api/cats/${cat.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: name.trim(), breed: breed || null, birthday: birthday || null }),
+      })
+      onDone(updated)
+    } catch (e) {
+      setError(e.message)
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="แก้ไขข้อมูลแมว" onClose={onClose}>
+      {error && <div className="error-msg">{error}</div>}
+      <label className="form-label">ชื่อแมว *</label>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อแมว" autoFocus />
+      <label className="form-label">สายพันธุ์</label>
+      <input value={breed} onChange={e => setBreed(e.target.value)} placeholder="เช่น เปอร์เซีย, อเมริกันชอร์ตแฮร์" />
+      <label className="form-label">วันเกิด</label>
+      <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)} />
+      <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit} disabled={saving}>
+        {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+      </button>
+    </Modal>
+  )
+}
+
 // ===== Sub-tab config =====
 const SUBTABS = [
   { id: 'routines', Icon: ListChecks, label: 'กิจวัตร' },
@@ -432,7 +493,26 @@ export default function CatPassport({ cat: initialCat }) {
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
         </div>
         <div className="passport-info">
-          <div className="passport-id">{passportId}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <div className="passport-id" style={{ marginBottom: 0 }}>{passportId}</div>
+            <button
+              onClick={() => setModal('edit')}
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                border: 'none',
+                borderRadius: 6,
+                padding: '3px 5px',
+                cursor: 'pointer',
+                color: 'rgba(255,255,255,0.7)',
+                display: 'flex',
+                alignItems: 'center',
+                lineHeight: 1,
+              }}
+              title="แก้ไขข้อมูลแมว"
+            >
+              <Pencil size={11} />
+            </button>
+          </div>
           <div className="passport-name">{cat.name}</div>
           {cat.breed && <div className="passport-detail">{cat.breed}</div>}
           {cat.birthday && (
@@ -492,6 +572,13 @@ export default function CatPassport({ cat: initialCat }) {
       )}
       {modal === 'expense' && (
         <AddExpenseModal catId={cat.id} onDone={() => { setModal(null); bump('expenses') }} onClose={() => setModal(null)} />
+      )}
+      {modal === 'edit' && (
+        <EditCatModal
+          cat={cat}
+          onDone={(updated) => { setModal(null); setCat(updated) }}
+          onClose={() => setModal(null)}
+        />
       )}
     </div>
   )

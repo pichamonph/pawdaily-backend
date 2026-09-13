@@ -52,6 +52,11 @@ app.put('/api/me/reminder', requireLiffAuth, async (req, res) => {
   res.json(updated.rows[0]);
 });
 
+// POST /api/me/renew — stub (payment not yet implemented)
+app.post('/api/me/renew', requireLiffAuth, async (_req, res) => {
+  res.status(501).json({ error: 'ระบบชำระเงินกำลังจะเปิดให้ใช้เร็ว ๆ นี้' });
+});
+
 // GET /api/cats
 app.get('/api/cats', requireLiffAuth, async (req, res) => {
   const user = await findOrCreateUser(req.lineUserId, null);
@@ -96,13 +101,13 @@ app.get('/api/cats/:id/routines', requireLiffAuth, async (req, res) => {
 app.post('/api/cats/:id/routines', requireLiffAuth, async (req, res) => {
   const cat = await assertOwnsCat(req.lineUserId, req.params.id);
   if (!cat) return res.status(404).json({ error: 'cat not found' });
-  const { title, frequency_days } = req.body;
+  const { title, frequency_days, last_done_at } = req.body;
   if (!title || !frequency_days) {
     return res.status(400).json({ error: 'title and frequency_days are required' });
   }
   const inserted = await query(
-    'INSERT INTO routines (cat_id, title, frequency_days) VALUES ($1, $2, $3) RETURNING *',
-    [cat.id, title, frequency_days]
+    'INSERT INTO routines (cat_id, title, frequency_days, last_done_at) VALUES ($1, $2, $3, $4) RETURNING *',
+    [cat.id, title, frequency_days, last_done_at || null]
   );
   res.status(201).json(inserted.rows[0]);
 });
@@ -171,6 +176,20 @@ app.get('/api/cats/:id/weight', requireLiffAuth, async (req, res) => {
     [cat.id]
   );
   res.json(logs.rows);
+});
+
+// PUT /api/cats/:id — แก้ไขข้อมูลแมว (ชื่อ/พันธุ์/วันเกิด)
+app.put('/api/cats/:id', requireLiffAuth, async (req, res) => {
+  const cat = await assertOwnsCat(req.lineUserId, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'cat not found' });
+  const name = req.body.name?.trim() || cat.name;
+  const breed = 'breed' in req.body ? (req.body.breed || null) : cat.breed;
+  const birthday = 'birthday' in req.body ? (req.body.birthday || null) : cat.birthday;
+  const updated = await query(
+    'UPDATE cats SET name = $1, breed = $2, birthday = $3 WHERE id = $4 RETURNING *',
+    [name, breed, birthday, cat.id]
+  );
+  res.json(updated.rows[0]);
 });
 
 // POST /api/cats/:id/photo
