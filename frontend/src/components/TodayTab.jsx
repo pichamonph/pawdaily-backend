@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { CheckCircle2 } from 'lucide-react'
 import { api } from '../api'
 import CatAvatar from './CatAvatar'
 
@@ -46,7 +47,7 @@ export default function TodayTab() {
 
       {!error && items.length === 0 && (
         <div className="empty-state">
-          <div className="empty-icon">😸</div>
+          <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
           <div className="empty-title">เยี่ยมมาก!</div>
           <div className="empty-sub">วันนี้ไม่มีอะไรต้องทำแล้ว</div>
         </div>
@@ -68,9 +69,7 @@ export default function TodayTab() {
                     <span style={{ color: 'var(--rhino-dim)', fontSize: 13 }}> — {it.title}</span>
                   </span>
                 </span>
-                <button className="done" onClick={() => complete(it.id)}>
-                  ทำแล้ว
-                </button>
+                <button className="done" onClick={() => complete(it.id)}>ทำแล้ว</button>
               </div>
             ))}
           </div>

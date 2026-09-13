@@ -51,3 +51,27 @@ CREATE TABLE IF NOT EXISTS weight_logs (
 CREATE INDEX IF NOT EXISTS idx_cats_owner ON cats(owner_id);
 CREATE INDEX IF NOT EXISTS idx_routines_cat ON routines(cat_id);
 CREATE INDEX IF NOT EXISTS idx_weight_logs_cat ON weight_logs(cat_id);
+
+CREATE TABLE IF NOT EXISTS expenses (
+  id SERIAL PRIMARY KEY,
+  cat_id INTEGER NOT NULL REFERENCES cats(id) ON DELETE CASCADE,
+  amount NUMERIC(10,2) NOT NULL,
+  category TEXT NOT NULL,
+  note TEXT,
+  expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS medical_events (
+  id SERIAL PRIMARY KEY,
+  cat_id INTEGER NOT NULL REFERENCES cats(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  event_date DATE NOT NULL,
+  next_due_date DATE,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_expenses_cat ON expenses(cat_id);
+CREATE INDEX IF NOT EXISTS idx_medical_events_cat ON medical_events(cat_id);

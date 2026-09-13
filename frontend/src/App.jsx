@@ -1,5 +1,6 @@
 /* global liff */
 import { useState, useEffect } from 'react'
+import { Sun, PawPrint, Settings } from 'lucide-react'
 import { setTokenGetter } from './api'
 import TodayTab from './components/TodayTab'
 import CatsTab from './components/CatsTab'
@@ -8,9 +9,9 @@ import SettingsTab from './components/SettingsTab'
 const LIFF_ID = import.meta.env.VITE_LIFF_ID
 
 const TABS = [
-  { id: 'today',    icon: '☀️', label: 'วันนี้' },
-  { id: 'cats',     icon: '🐾', label: 'แมวของฉัน' },
-  { id: 'settings', icon: '⚙️', label: 'ตั้งค่า' },
+  { id: 'today',    Icon: Sun,      label: 'วันนี้' },
+  { id: 'cats',     Icon: PawPrint, label: 'แมวของฉัน' },
+  { id: 'settings', Icon: Settings, label: 'ตั้งค่า' },
 ]
 
 export default function App() {
@@ -33,7 +34,12 @@ export default function App() {
       .catch((err) => setError(`LIFF init ล้มเหลว: ${err.message}`))
   }, [])
 
-  const header = <header className="app-header">🐾 PawDaily</header>
+  const header = (
+    <header className="app-header">
+      <PawPrint size={20} strokeWidth={2} />
+      PawDaily
+    </header>
+  )
 
   if (error) return (
     <>
@@ -58,14 +64,14 @@ export default function App() {
         {tab === 'settings' && <SettingsTab />}
       </div>
       <div className="tabbar">
-        {TABS.map(t => (
+        {TABS.map(({ id, Icon, label }) => (
           <button
-            key={t.id}
-            className={tab === t.id ? 'active' : ''}
-            onClick={() => setTab(t.id)}
+            key={id}
+            className={tab === id ? 'active' : ''}
+            onClick={() => setTab(id)}
           >
-            <span className="tab-icon">{t.icon}</span>
-            {t.label}
+            <Icon size={22} strokeWidth={tab === id ? 2.5 : 1.8} />
+            {label}
           </button>
         ))}
       </div>

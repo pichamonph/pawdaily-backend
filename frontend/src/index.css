@@ -27,14 +27,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--rhino);
   z-index: 100;
   letter-spacing: 0.01em;
 }
 
-/* ===== Main content area ===== */
+/* ===== Main wrap ===== */
 .wrap {
   max-width: 480px;
   margin: 0 auto;
@@ -55,7 +56,7 @@ h1 {
   margin-bottom: 12px;
 }
 
-/* ===== Cards ===== */
+/* ===== Card (generic) ===== */
 .card {
   background: #fff;
   border: 1px solid var(--almond-dim);
@@ -64,18 +65,11 @@ h1 {
   margin-bottom: 12px;
   box-shadow: 0 1px 4px rgba(46, 64, 96, 0.07);
 }
-
 .card h2 {
   font-size: 15px;
   margin: 0 0 12px;
   color: var(--rhino);
   font-weight: 600;
-}
-
-/* ===== Cat name badge (in today list) ===== */
-.cat-name {
-  font-weight: 600;
-  font-size: 14px;
 }
 
 /* ===== Routine rows ===== */
@@ -108,12 +102,12 @@ button {
   font-size: 13.5px;
   transition: background 0.15s;
 }
-
 button.primary {
   background: var(--rhino);
   color: var(--almond);
 }
 button.primary:hover { background: var(--rhino-dim); }
+button.primary:disabled { opacity: 0.6; cursor: default; }
 
 button.done {
   background: var(--dull-pink);
@@ -128,15 +122,6 @@ button.ghost {
 }
 button.ghost:hover { background: var(--dull-pink); color: #fff; }
 
-button.accent {
-  background: var(--dull-pink);
-  color: #fff;
-  padding: 8px 12px;
-  font-size: 13px;
-  white-space: nowrap;
-}
-button.accent:hover { background: var(--pink-dark); }
-
 /* ===== Inputs ===== */
 input, select {
   width: 100%;
@@ -149,36 +134,54 @@ input, select {
   font-family: 'Kanit', sans-serif;
   color: var(--rhino);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 input:focus, select:focus {
   border-color: var(--dull-pink);
   box-shadow: 0 0 0 2px rgba(221, 140, 150, 0.18);
+}
+input[type="file"] {
+  background: none;
+  border: 1px dashed rgba(74, 93, 128, 0.3);
+  color: var(--rhino-dim);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+input[type="date"] { color-scheme: light; }
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rhino-dim);
+  margin-bottom: 4px;
+  margin-top: 2px;
 }
 
 /* ===== Empty states ===== */
 .empty-state {
   text-align: center;
   padding: 36px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
-.empty-state .empty-icon { font-size: 60px; line-height: 1; }
 .empty-state .empty-title {
   font-weight: 600;
   font-size: 16px;
-  margin-top: 12px;
   color: var(--rhino);
 }
 .empty-state .empty-sub {
   font-size: 13px;
   color: var(--rhino-dim);
-  margin-top: 4px;
 }
 
 .empty {
   text-align: center;
   color: var(--rhino-dim);
-  font-size: 13.5px;
-  padding: 14px 10px;
+  font-size: 13px;
+  padding: 12px 0;
 }
 
 /* ===== Error ===== */
@@ -191,29 +194,251 @@ input:focus, select:focus {
   font-size: 13.5px;
 }
 
-/* ===== Section divider inside card ===== */
-.section-label {
+/* ===== Section header (with add button) ===== */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.section-header-title {
   font-size: 11px;
   font-weight: 600;
   color: var(--rhino-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin: 16px 0 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--almond-dim);
+}
+.section-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--almond-dim);
+  color: var(--rhino);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: 'Kanit', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.section-add-btn:hover { background: var(--dull-pink); color: #fff; }
+
+/* ===== Medical rows ===== */
+.medical-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--almond-dim);
+}
+.medical-row:last-child { border-bottom: none; }
+.medical-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-top: 2px;
 }
 
-/* ===== Weight form ===== */
-.weight-form-row {
+/* ===== Expense rows ===== */
+.expense-row {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--almond-dim);
+}
+.expense-row:last-child { border-bottom: none; }
+.expense-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.expense-total {
+  font-size: 13px;
+  color: var(--rhino-dim);
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: var(--almond);
+  border-radius: 8px;
+}
+
+/* ===== Passport card ===== */
+.passport-card {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(46, 64, 96, 0.12);
+}
+
+.passport-header {
+  background: linear-gradient(135deg, #2E4060 0%, #4A5D80 100%);
+  padding: 20px 16px;
+  display: flex;
+  gap: 16px;
   align-items: center;
 }
-.weight-form-row input {
-  margin-bottom: 0;
-  flex: 1;
-  min-width: 0;
+
+.passport-photo-wrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
 }
+.passport-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.passport-photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+.passport-photo-overlay {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.passport-photo-wrap:hover .passport-photo-overlay,
+.passport-photo-wrap:active .passport-photo-overlay { opacity: 1; }
+
+.passport-info { flex: 1; min-width: 0; }
+.passport-id {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.passport-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.passport-detail {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ===== Passport sub-tabs ===== */
+.passport-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--almond-dim);
+  background: var(--almond);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.passport-tabs::-webkit-scrollbar { display: none; }
+
+.passport-tab {
+  flex: 1;
+  min-width: 70px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 6px;
+  font-size: 11.5px;
+  color: var(--rhino-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  font-family: 'Kanit', sans-serif;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.passport-tab.active {
+  color: var(--rhino);
+  font-weight: 600;
+  border-bottom-color: var(--dull-pink);
+}
+
+.passport-content { padding: 14px 16px 16px; }
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 200;
+}
+.modal-box {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 16px 0;
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--rhino);
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+.modal-close-btn {
+  background: var(--almond-dim);
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rhino-dim);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.modal-close-btn:hover { background: var(--dull-pink); color: #fff; }
+.modal-body { padding: 12px 16px 20px; }
+
+/* ===== Cat name in today list ===== */
+.cat-name { font-weight: 600; font-size: 14px; }
 
 /* ===== Tabbar ===== */
 .tabbar {
@@ -223,7 +448,6 @@ input:focus, select:focus {
   border-top: 1px solid var(--almond-dim);
   display: flex;
 }
-
 .tabbar button {
   flex: 1;
   background: none;
@@ -236,7 +460,6 @@ input:focus, select:focus {
   align-items: center;
   gap: 2px;
 }
-.tabbar button .tab-icon { font-size: 22px; line-height: 1.1; }
 .tabbar button.active {
   color: var(--rhino);
   font-weight: 600;
@@ -249,7 +472,6 @@ input:focus, select:focus {
   justify-content: space-between;
   gap: 12px;
 }
-
 .switch {
   position: relative;
   width: 44px;

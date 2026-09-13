@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Bell } from 'lucide-react'
 import { api } from '../api'
 
 export default function SettingsTab() {
@@ -34,13 +35,16 @@ export default function SettingsTab() {
       {me && (
         <div className="card">
           <div className="toggle">
-            <span>แจ้งเตือนรายวันผ่าน LINE</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Bell size={18} strokeWidth={1.8} color="var(--rhino-dim)" />
+              แจ้งเตือนรายวันผ่าน LINE
+            </span>
             <div
               className={`switch${me.daily_reminder_enabled ? ' on' : ''}`}
               onClick={toggle}
             />
           </div>
-          <div className="sub" style={{ marginTop: 8 }}>
+          <div className="sub" style={{ marginTop: 10, marginBottom: 0 }}>
             ถ้าปิดไว้ ยังดูเช็คลิสต์วันนี้ได้ตามปกติในแท็บ "วันนี้"
           </div>
         </div>
