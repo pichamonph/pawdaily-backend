@@ -407,6 +407,146 @@ app.get('/api/cats/:id/medical-events', requireLiffAuth, async (req, res) => {
   res.json(result.rows);
 });
 
+// POST /api/cats/:id/diary — multipart/form-data: mood, note?, entry_date?, photo?
+app.post('/api/cats/:id/diary', requireLiffAuth, (req, res, next) => {
+  catPhotoUpload.single('photo')(req, res, (err) => {
+    if (err instanceof multer.MulterError) return res.status(400).json({ error: err.message });
+    if (err) return res.status(400).json({ error: 'รับเฉพาะไฟล์รูปภาพ' });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const cat = await assertOwnsCat(req.lineUserId, req.params.id);
+    if (!cat) return res.status(404).json({ error: 'cat not found' });
+
+    const { mood, note, entry_date } = req.body;
+    if (!mood) return res.status(400).json({ error: 'mood is required' });
+
+    let photoUrl = null;
+    if (req.file) {
+      const ext = req.file.mimetype.split('/')[1].replace('jpeg', 'jpg');
+      const filename = `diary-${cat.id}-${Date.now()}.${ext}`;
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      const uploadRes = await fetch(`${supabaseUrl}/storage/v1/object/cat-photos/${filename}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': req.file.mimetype,
+          'x-upsert': 'true',
+        },
+        body: req.file.buffer,
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        return res.status(500).json({ error: `Upload failed: ${errText}` });
+      }
+
+      photoUrl = `${supabaseUrl}/storage/v1/object/public/cat-photos/${filename}`;
+    }
+
+    const inserted = await query(
+      'INSERT INTO diary_entries (cat_id, mood, note, photo_url, entry_date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [cat.id, mood, note || null, photoUrl, entry_date || null]
+    );
+    res.status(201).json(inserted.rows[0]);
+  } catch (err) {
+    console.error('diary insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/cats/:id/diary
+app.get('/api/cats/:id/diary', requireLiffAuth, async (req, res) => {
+  const cat = await assertOwnsCat(req.lineUserId, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'cat not found' });
+  const result = await query(
+    'SELECT * FROM diary_entries WHERE cat_id = $1 ORDER BY entry_date DESC, id DESC',
+    [cat.id]
+  );
+  res.json(result.rows);
+});
+
+// GET /api/calendar?month=YYYY-MM
+app.get('/api/calendar', requireLiffAuth, async (req, res) => {
+  try {
+    const user = await findOrCreateUser(req.lineUserId, null);
+    const month = req.query.month; // e.g. "2026-09"
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ error: 'month param must be YYYY-MM' });
+    }
+
+    // Determine month start/end as strings
+    const [year, mon] = month.split('-').map(Number);
+    const monthStart = month + '-01';
+    // last day of month
+    const lastDay = new Date(year, mon, 0).getDate();
+    const monthEnd = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+    const result = {};
+
+    // Helper to ensure a date key exists
+    function addEvent(dateStr, ev) {
+      if (!result[dateStr]) result[dateStr] = [];
+      result[dateStr].push(ev);
+    }
+
+    // 1) medical_events: next_due_date falls within the month
+    const medResult = await query(
+      `SELECT me.next_due_date, me.name, c.name AS cat_name
+       FROM medical_events me
+       JOIN cats c ON c.id = me.cat_id
+       WHERE c.owner_id = $1
+         AND me.next_due_date IS NOT NULL
+         AND me.next_due_date::text >= $2
+         AND me.next_due_date::text <= $3`,
+      [user.id, monthStart, monthEnd]
+    );
+    for (const row of medResult.rows) {
+      const dateStr = String(row.next_due_date).slice(0, 10);
+      addEvent(dateStr, { type: 'medical_event', pet_name: row.cat_name, title: row.name });
+    }
+
+    // 2) routines: project occurrences within the month using last_done_at + frequency_days stepping
+    const routResult = await query(
+      `SELECT r.id, r.title, r.frequency_days, r.last_done_at, c.name AS cat_name
+       FROM routines r
+       JOIN cats c ON c.id = r.cat_id
+       WHERE c.owner_id = $1 AND r.active = TRUE AND r.last_done_at IS NOT NULL`,
+      [user.id]
+    );
+
+    for (const r of routResult.rows) {
+      const freq = parseInt(r.frequency_days, 10);
+      if (!freq || freq <= 0) continue;
+
+      // Start from last_done_at + freq_days, step by freq until past monthEnd
+      // Use local-date string arithmetic to avoid UTC bugs
+      let current = new Date(String(r.last_done_at).slice(0, 10) + 'T00:00:00');
+      current.setDate(current.getDate() + freq);
+
+      // Safety cap: avoid infinite loop
+      let safety = 0;
+      while (safety < 200) {
+        safety++;
+        const dateStr = current.toLocaleDateString('sv'); // YYYY-MM-DD in local TZ
+        if (dateStr > monthEnd) break;
+        if (dateStr >= monthStart) {
+          addEvent(dateStr, { type: 'routine', pet_name: r.cat_name, title: r.title });
+        }
+        current.setDate(current.getDate() + freq);
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('calendar error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // เสิร์ฟหน้าจอ LIFF (build output จาก frontend/ หลังรัน npm run build)
 app.use(express.static(path.join(__dirname, '../public')));
 

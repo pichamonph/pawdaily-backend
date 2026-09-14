@@ -6,7 +6,23 @@ function pickColor(name) {
   return PALETTE[sum % PALETTE.length]
 }
 
-export default function CatAvatar({ name, size = 36 }) {
+export default function CatAvatar({ name, size = 36, photoUrl }) {
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          flexShrink: 0,
+          display: 'block',
+        }}
+      />
+    )
+  }
   return (
     <div style={{
       width: size,

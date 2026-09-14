@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Camera, Plus, ListChecks, Scale, Stethoscope, Wallet, ImagePlus, Calendar, Pencil } from 'lucide-react'
+import { Camera, Plus, ListChecks, Scale, Stethoscope, Wallet, ImagePlus, Calendar, Pencil, BookOpen, Laugh, Smile, Meh, Frown } from 'lucide-react'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
 import WeightChart from './WeightChart'
@@ -23,6 +23,14 @@ function isDueSoon(dateStr) {
   const limitStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('sv')
   return target >= todayStr && target <= limitStr
 }
+
+// ===== Diary config =====
+const MOODS = [
+  { id: 'great', Icon: Laugh,  label: 'สุดยอด', color: '#16a34a' },
+  { id: 'good',  Icon: Smile,  label: 'ดี',     color: '#65a30d' },
+  { id: 'okay',  Icon: Meh,    label: 'ปกติ',   color: '#d97706' },
+  { id: 'bad',   Icon: Frown,  label: 'ไม่ดี',  color: '#dc2626' },
+]
 
 // ===== กิจวัตร panel =====
 function RoutinesPanel({ catId, version, onAdd }) {
@@ -244,6 +252,54 @@ function ExpensesPanel({ catId, version, onAdd }) {
   )
 }
 
+// ===== Diary panel =====
+function DiaryPanel({ catId, version, onAdd }) {
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let ok = true
+    setLoading(true)
+    api(`/api/cats/${catId}/diary`)
+      .then(d => { if (ok) { setEntries(d); setError(null) } })
+      .catch(e => { if (ok) setError(e.message) })
+      .finally(() => { if (ok) setLoading(false) })
+    return () => { ok = false }
+  }, [catId, version])
+
+  if (loading) return <div className="sub">กำลังโหลด...</div>
+  if (error) return <div className="error-msg">{error}</div>
+
+  return (
+    <>
+      <div className="section-header">
+        <span className="section-header-title">ไดอารี่</span>
+        <button className="section-add-btn" onClick={onAdd}><Plus size={12} /> เพิ่ม</button>
+      </div>
+      {entries.length === 0
+        ? <div className="empty">ยังไม่มีบันทึกไดอารี่</div>
+        : entries.map(entry => {
+          const moodCfg = MOODS.find(m => m.id === entry.mood) || MOODS[2]
+          const { Icon } = moodCfg
+          return (
+            <div className="diary-entry" key={entry.id}>
+              <Icon size={24} color={moodCfg.color} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--rhino-dim)', marginBottom: 2 }}>{fmtDate(entry.entry_date)}</div>
+                {entry.note && <div style={{ fontSize: 13 }}>{entry.note}</div>}
+              </div>
+              {entry.photo_url && (
+                <img src={entry.photo_url} alt="diary" className="diary-thumb" />
+              )}
+            </div>
+          )
+        })
+      }
+    </>
+  )
+}
+
 // ===== Modals =====
 function AddRoutineModal({ catId, onDone, onClose }) {
   const [title, setTitle] = useState('')
@@ -405,6 +461,72 @@ function AddExpenseModal({ catId, onDone, onClose }) {
   )
 }
 
+function AddDiaryModal({ catId, onDone, onClose }) {
+  const [mood, setMood] = useState('good')
+  const [note, setNote] = useState('')
+  const [photo, setPhoto] = useState(null)
+  const [entryDate, setEntryDate] = useState(today())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit() {
+    setSaving(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('mood', mood)
+      if (note) form.append('note', note)
+      form.append('entry_date', entryDate)
+      if (photo) form.append('photo', photo)
+      await apiForm(`/api/cats/${catId}/diary`, form)
+      onDone()
+    } catch (e) {
+      setError(e.message)
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="บันทึกไดอารี่" onClose={onClose}>
+      {error && <div className="error-msg">{error}</div>}
+      <label className="form-label">อารมณ์วันนี้</label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        {MOODS.map(({ id, Icon, label, color }) => (
+          <button
+            key={id}
+            className={`mood-btn${mood === id ? ' selected' : ''}`}
+            style={{ color: mood === id ? color : undefined }}
+            onClick={() => setMood(id)}
+            type="button"
+          >
+            <Icon size={22} color={color} strokeWidth={1.8} />
+            {label}
+          </button>
+        ))}
+      </div>
+      <label className="form-label">บันทึก (ถ้ามี)</label>
+      <textarea
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        placeholder="เขียนบันทึกวันนี้..."
+        rows={3}
+        style={{
+          width: '100%', padding: '9px 10px', border: '1px solid rgba(74,93,128,0.3)',
+          borderRadius: 6, fontSize: 14, fontFamily: 'Kanit, sans-serif',
+          color: 'var(--rhino)', marginBottom: 8, resize: 'vertical', outline: 'none',
+        }}
+      />
+      <label className="form-label">รูปภาพ (ถ้ามี)</label>
+      <input type="file" accept="image/*" onChange={e => setPhoto(e.target.files[0] || null)} />
+      <label className="form-label">วันที่</label>
+      <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} />
+      <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit} disabled={saving}>
+        {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+      </button>
+    </Modal>
+  )
+}
+
 function EditCatModal({ cat, onDone, onClose }) {
   const [name, setName] = useState(cat.name)
   const [breed, setBreed] = useState(cat.breed || '')
@@ -450,6 +572,7 @@ const SUBTABS = [
   { id: 'weight',   Icon: Scale,      label: 'น้ำหนัก' },
   { id: 'health',   Icon: Stethoscope, label: 'สุขภาพ' },
   { id: 'expenses', Icon: Wallet,     label: 'ค่าใช้จ่าย' },
+  { id: 'diary',    Icon: BookOpen,   label: 'ไดอารี่' },
 ]
 
 // ===== Main CatPassport =====
@@ -457,7 +580,7 @@ export default function CatPassport({ cat: initialCat }) {
   const [cat, setCat] = useState(initialCat)
   const [activeTab, setActiveTab] = useState('routines')
   const [modal, setModal] = useState(null)
-  const [versions, setVersions] = useState({ routines: 0, weight: 0, health: 0, expenses: 0 })
+  const [versions, setVersions] = useState({ routines: 0, weight: 0, health: 0, expenses: 0, diary: 0 })
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const fileRef = useRef(null)
@@ -568,6 +691,9 @@ export default function CatPassport({ cat: initialCat }) {
         {activeTab === 'expenses' && (
           <ExpensesPanel catId={cat.id} version={versions.expenses} onAdd={() => setModal('expense')} />
         )}
+        {activeTab === 'diary' && (
+          <DiaryPanel catId={cat.id} version={versions.diary} onAdd={() => setModal('diary')} />
+        )}
       </div>
 
       {/* Modals */}
@@ -582,6 +708,9 @@ export default function CatPassport({ cat: initialCat }) {
       )}
       {modal === 'expense' && (
         <AddExpenseModal catId={cat.id} onDone={() => { setModal(null); bump('expenses') }} onClose={() => setModal(null)} />
+      )}
+      {modal === 'diary' && (
+        <AddDiaryModal catId={cat.id} onDone={() => { setModal(null); bump('diary') }} onClose={() => setModal(null)} />
       )}
       {modal === 'edit' && (
         <EditCatModal

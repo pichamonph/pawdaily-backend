@@ -3,6 +3,7 @@ import { Plus, PawPrint } from 'lucide-react'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
 import CatPassport from './CatPassport'
+import CatAvatarStrip from './CatAvatarStrip'
 
 function AddCatModal({ onDone, onClose }) {
   const [name, setName] = useState('')
@@ -72,6 +73,10 @@ export default function CatsTab() {
 
   useEffect(() => { loadCats() }, [loadCats])
 
+  function scrollToPassport(catId) {
+    document.getElementById(`passport-${catId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   if (loading) return <div className="sub">กำลังโหลด...</div>
 
   return (
@@ -82,6 +87,12 @@ export default function CatsTab() {
           <Plus size={14} /> เพิ่มแมว
         </button>
       </div>
+
+      {/* Avatar strip (only when > 1 cat) */}
+      {cats.length > 1 && (
+        <CatAvatarStrip cats={cats} onSelect={scrollToPassport} />
+      )}
+
       {error && <div className="error-msg">{error}</div>}
       {!error && cats.length === 0 && (
         <div className="empty-state">
@@ -90,7 +101,11 @@ export default function CatsTab() {
           <div className="empty-sub">กดปุ่มเพิ่มแมวเพื่อเริ่มต้น</div>
         </div>
       )}
-      {cats.map(cat => <CatPassport key={cat.id} cat={cat} />)}
+      {cats.map(cat => (
+        <div key={cat.id} id={`passport-${cat.id}`}>
+          <CatPassport cat={cat} />
+        </div>
+      ))}
       {showAdd && (
         <AddCatModal
           onDone={() => { setShowAdd(false); loadCats() }}

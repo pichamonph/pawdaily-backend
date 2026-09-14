@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, List, CalendarDays } from 'lucide-react'
 import { api } from '../api'
 import CatAvatar from './CatAvatar'
+import CatAvatarStrip from './CatAvatarStrip'
+import CalendarView from './CalendarView'
 
 function greeting() {
   const h = new Date().getHours()
@@ -22,16 +24,22 @@ function isOverdue(item) {
 
 export default function TodayTab() {
   const [items, setItems] = useState([])
+  const [cats, setCats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [completing, setCompleting] = useState(new Set())
+  const [view, setView] = useState('list')
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await api('/api/today')
-      setItems(data)
+      const [todayData, catsData] = await Promise.all([
+        api('/api/today'),
+        api('/api/cats'),
+      ])
+      setItems(todayData)
+      setCats(catsData)
       setCompleting(new Set())
     } catch (err) {
       setError(err.message)
@@ -55,6 +63,10 @@ export default function TodayTab() {
     }, 350)
   }
 
+  function scrollToCat(catId) {
+    document.getElementById(`cat-group-${catId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   if (loading) return <div className="sub">กำลังโหลด...</div>
 
   // Group by cat_id
@@ -66,48 +78,79 @@ export default function TodayTab() {
 
   return (
     <>
-      <div className="greeting-card">
-        <div className="greeting-text">{greeting()}</div>
-        <div className="greeting-sub">
-          {items.length > 0
-            ? `มี ${items.length} รายการที่ต้องดูแลวันนี้`
-            : 'วันนี้ดูแลครบแล้ว!'}
-        </div>
+      {/* View toggle */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button
+          className={`view-toggle${view === 'list' ? ' active' : ''}`}
+          onClick={() => setView('list')}
+          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <List size={14} /> รายการ
+        </button>
+        <button
+          className={`view-toggle${view === 'calendar' ? ' active' : ''}`}
+          onClick={() => setView('calendar')}
+          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <CalendarDays size={14} /> ปฏิทิน
+        </button>
       </div>
 
-      {error && <div className="error-msg">โหลดไม่ได้: {error}</div>}
-
-      {!error && items.length === 0 && (
-        <div className="empty-state">
-          <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
-          <div className="empty-title">เยี่ยมมาก!</div>
-          <div className="empty-sub">วันนี้ไม่มีอะไรต้องทำแล้ว</div>
+      {view === 'calendar' ? (
+        <div className="card">
+          <CalendarView />
         </div>
-      )}
+      ) : (
+        <>
+          {/* Avatar strip (only when > 1 cat) */}
+          {cats.length > 1 && (
+            <CatAvatarStrip cats={cats} onSelect={scrollToCat} />
+          )}
 
-      {Object.entries(grouped).map(([catId, group]) => (
-        <div key={catId} style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <CatAvatar name={group.name} size={24} />
-            <span className="cat-name">{group.name}</span>
+          <div className="greeting-card">
+            <div className="greeting-text">{greeting()}</div>
+            <div className="greeting-sub">
+              {items.length > 0
+                ? `มี ${items.length} รายการที่ต้องดูแลวันนี้`
+                : 'วันนี้ดูแลครบแล้ว!'}
+            </div>
           </div>
-          <div className="card" style={{ padding: 0 }}>
-            {group.items.map(it => (
-              <div
-                key={it.id}
-                className={`routine-row${completing.has(it.id) ? ' completing' : ''}`}
-                style={{ padding: '10px 16px' }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-                  {isOverdue(it) && <span className="overdue-badge">เลยกำหนด</span>}
-                  <span style={{ fontSize: 14 }}>{it.title}</span>
-                </span>
-                <button className="done" onClick={() => complete(it.id)}>ทำแล้ว</button>
+
+          {error && <div className="error-msg">โหลดไม่ได้: {error}</div>}
+
+          {!error && items.length === 0 && (
+            <div className="empty-state">
+              <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
+              <div className="empty-title">เยี่ยมมาก!</div>
+              <div className="empty-sub">วันนี้ไม่มีอะไรต้องทำแล้ว</div>
+            </div>
+          )}
+
+          {Object.entries(grouped).map(([catId, group]) => (
+            <div key={catId} id={`cat-group-${catId}`} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <CatAvatar name={group.name} size={24} />
+                <span className="cat-name">{group.name}</span>
               </div>
-            ))}
-          </div>
-        </div>
-      ))}
+              <div className="card" style={{ padding: 0 }}>
+                {group.items.map(it => (
+                  <div
+                    key={it.id}
+                    className={`routine-row${completing.has(it.id) ? ' completing' : ''}`}
+                    style={{ padding: '10px 16px' }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+                      {isOverdue(it) && <span className="overdue-badge">เลยกำหนด</span>}
+                      <span style={{ fontSize: 14 }}>{it.title}</span>
+                    </span>
+                    <button className="done" onClick={() => complete(it.id)}>ทำแล้ว</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </>
   )
 }
