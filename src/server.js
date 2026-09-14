@@ -36,22 +36,44 @@ async function handleEvent(event) {
     const text = (event.message.text || '').trim();
 
     if (text === 'แจ้งปัญหา') {
-      await query('UPDATE users SET awaiting_feedback = TRUE WHERE id = $1', [user.id]);
+      await query(
+        'UPDATE users SET awaiting_feedback = TRUE, awaiting_feedback_since = now() WHERE id = $1',
+        [user.id]
+      );
       await client.replyMessage({
         replyToken: event.replyToken,
-        messages: [{ type: 'text', text: 'พิมพ์ปัญหาที่เจอมาได้เลยค่ะ ระบบจะส่งต่อให้ทีมงานดูให้ทันที' }],
+        messages: [{
+          type: 'text',
+          text: 'เลือกหมวดปัญหาที่พบได้เลยค่ะ',
+          quickReply: {
+            items: [
+              { type: 'action', action: { type: 'postback', label: 'แจ้งเตือนไม่เข้า', data: 'feedback_category=แจ้งเตือนไม่เข้า', displayText: 'แจ้งเตือนไม่เข้า' } },
+              { type: 'action', action: { type: 'postback', label: 'ปุ่ม/หน้าจอใช้งานไม่ได้', data: 'feedback_category=ปุ่ม/หน้าจอใช้งานไม่ได้', displayText: 'ปุ่ม/หน้าจอใช้งานไม่ได้' } },
+              { type: 'action', action: { type: 'postback', label: 'ข้อมูลแมวผิดพลาด', data: 'feedback_category=ข้อมูลแมวผิดพลาด', displayText: 'ข้อมูลแมวผิดพลาด' } },
+              { type: 'action', action: { type: 'postback', label: 'อื่นๆ', data: 'feedback_category=อื่นๆ', displayText: 'อื่นๆ' } },
+            ],
+          },
+        }],
       });
     } else if (user.awaiting_feedback) {
-      await query('INSERT INTO feedback (user_id, message) VALUES ($1, $2)', [user.id, text]);
-      await query('UPDATE users SET awaiting_feedback = FALSE WHERE id = $1', [user.id]);
+      const category = user.pending_feedback_category || null;
+      await query(
+        'INSERT INTO feedback (user_id, message, category) VALUES ($1, $2, $3)',
+        [user.id, text, category]
+      );
+      await query(
+        'UPDATE users SET awaiting_feedback = FALSE, awaiting_feedback_since = NULL, pending_feedback_category = NULL WHERE id = $1',
+        [user.id]
+      );
       await client.replyMessage({
         replyToken: event.replyToken,
         messages: [{ type: 'text', text: 'ได้รับเรื่องแล้วค่ะ ขอบคุณที่แจ้งให้ทราบ ทีมงานจะรีบดำเนินการ' }],
       });
       if (process.env.ADMIN_LINE_USER_ID) {
+        const catLabel = category ? ` [${category}]` : '';
         await pushMessage(
           process.env.ADMIN_LINE_USER_ID,
-          `แจ้งปัญหาใหม่จาก user #${user.id}:\n${text}`
+          `แจ้งปัญหาใหม่จาก user #${user.id}${catLabel}:\n${text}`
         );
       }
     }
@@ -69,6 +91,39 @@ async function handleEvent(event) {
             : 'ไม่พบกิจวัตร หรือกิจวัตรนี้ไม่ใช่ของคุณ',
         }],
       });
+    } else if (params.get('feedback_category')) {
+      const category = params.get('feedback_category');
+      const user = await findOrCreateUser(lineUserId, null);
+
+      if (category === 'อื่นๆ') {
+        await query(
+          'UPDATE users SET awaiting_feedback_since = now(), pending_feedback_category = $2 WHERE id = $1',
+          [user.id, category]
+        );
+        await client.replyMessage({
+          replyToken: event.replyToken,
+          messages: [{ type: 'text', text: 'พิมพ์รายละเอียดปัญหาที่เจอมาได้เลยค่ะ' }],
+        });
+      } else {
+        await query(
+          'INSERT INTO feedback (user_id, message, category) VALUES ($1, $2, $3)',
+          [user.id, category, category]
+        );
+        await query(
+          'UPDATE users SET awaiting_feedback = FALSE, awaiting_feedback_since = NULL, pending_feedback_category = NULL WHERE id = $1',
+          [user.id]
+        );
+        await client.replyMessage({
+          replyToken: event.replyToken,
+          messages: [{ type: 'text', text: `รับเรื่องแล้วค่ะ ทีมงานจะดำเนินการแก้ไขปัญหาเรื่อง "${category}" ให้เร็วที่สุด` }],
+        });
+        if (process.env.ADMIN_LINE_USER_ID) {
+          await pushMessage(
+            process.env.ADMIN_LINE_USER_ID,
+            `แจ้งปัญหาใหม่จาก user #${user.id}: ${category}`
+          );
+        }
+      }
     }
   }
 }
