@@ -1,7 +1,7 @@
 /* global liff */
 import { useState, useEffect } from 'react'
 import { Sun, PawPrint, Settings } from 'lucide-react'
-import { setTokenGetter } from './api'
+import { setTokenGetter, api } from './api'
 import TodayTab from './components/TodayTab'
 import CatsTab from './components/CatsTab'
 import SettingsTab from './components/SettingsTab'
@@ -26,9 +26,15 @@ export default function App() {
     }
     liff
       .init({ liffId: LIFF_ID })
-      .then(() => {
+      .then(async () => {
         if (!liff.isLoggedIn()) { liff.login(); return }
         setTokenGetter(() => liff.getIDToken())
+        try {
+          const cats = await api('/api/cats')
+          setTab(cats.length === 0 ? 'cats' : 'today')
+        } catch {
+          // fallback to default tab if check fails
+        }
         setReady(true)
       })
       .catch((err) => setError(`LIFF init ล้มเหลว: ${err.message}`))
