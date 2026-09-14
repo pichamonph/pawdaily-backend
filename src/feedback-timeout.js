@@ -1,6 +1,16 @@
 // สคริปต์นี้ตั้งใจให้รันทุก 5 นาที (Render Cron Job: */5 * * * *)
 // หน้าที่: ปิดจบการสนทนา "แจ้งปัญหา" ที่ผู้ใช้ไม่ตอบสนองเกิน 10 นาที
 require('dotenv').config();
+
+if (!process.env.DATABASE_URL) {
+  console.error('feedback-timeout: DATABASE_URL is not set — aborting');
+  process.exit(1);
+}
+if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) {
+  console.error('feedback-timeout: LINE_CHANNEL_ACCESS_TOKEN is not set — aborting');
+  process.exit(1);
+}
+
 const { query, pool } = require('./db');
 const { pushMessage } = require('./line');
 
