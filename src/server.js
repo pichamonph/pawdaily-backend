@@ -4,7 +4,7 @@ const path = require('path');
 const line = require('@line/bot-sdk');
 const multer = require('multer');
 const { query, findOrCreateUser } = require('./db');
-const { client, middlewareConfig, requireLiffAuth } = require('./line');
+const { client, middlewareConfig, requireLiffAuth, pushMessage } = require('./line');
 
 const app = express();
 
@@ -28,8 +28,34 @@ app.post('/webhook', line.middleware(middlewareConfig), async (req, res) => {
 async function handleEvent(event) {
   const lineUserId = event.source && event.source.userId;
   if (!lineUserId) return;
-  if (event.type === 'follow' || event.type === 'message') {
+
+  if (event.type === 'follow') {
     await findOrCreateUser(lineUserId, null);
+  } else if (event.type === 'message') {
+    const user = await findOrCreateUser(lineUserId, null);
+    const text = (event.message.text || '').trim();
+
+    if (text === 'แจ้งปัญหา') {
+      await query('UPDATE users SET awaiting_feedback = TRUE WHERE id = $1', [user.id]);
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text: 'พิมพ์ปัญหาที่เจอมาได้เลยค่ะ ระบบจะส่งต่อให้ทีมงานดูให้ทันที' }],
+      });
+    } else if (user.awaiting_feedback) {
+      await query('INSERT INTO feedback (user_id, message) VALUES ($1, $2)', [user.id, text]);
+      await query('UPDATE users SET awaiting_feedback = FALSE WHERE id = $1', [user.id]);
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text: 'ได้รับเรื่องแล้วค่ะ ขอบคุณที่แจ้งให้ทราบ ทีมงานจะรีบดำเนินการ' }],
+      });
+      if (process.env.ADMIN_LINE_USER_ID) {
+        await pushMessage(
+          process.env.ADMIN_LINE_USER_ID,
+          `แจ้งปัญหาใหม่จาก user #${user.id}:\n${text}`
+        );
+      }
+    }
+    // ข้อความอื่น ๆ: ไม่ตอบกลับ (ยังไม่มีฟีเจอร์เมนูอื่น)
   } else if (event.type === 'postback') {
     const params = new URLSearchParams(event.postback.data);
     if (params.get('action') === 'complete_routine') {
