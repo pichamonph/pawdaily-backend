@@ -1,9 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle2, List, CalendarDays } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api'
-import CatAvatar from './CatAvatar'
 import CatAvatarStrip from './CatAvatarStrip'
-import CalendarView from './CalendarView'
 
 function greeting() {
   const h = new Date().getHours()
@@ -12,23 +10,106 @@ function greeting() {
   return 'สวัสดีตอนเย็น'
 }
 
-function daysSince(dateStr) {
-  if (!dateStr) return Infinity
-  const last = new Date(dateStr)
-  return Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24))
-}
-
 function isOverdue(item) {
-  return item.last_done_at && daysSince(item.last_done_at) > item.frequency_days * 2
+  if (!item.last_done_at) return false
+  const last = new Date(String(item.last_done_at).slice(0, 10) + 'T00:00:00')
+  const daysSince = Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24))
+  return daysSince > item.frequency_days * 2
 }
 
-export default function TodayTab() {
+const DAY_HEADERS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+
+function MiniCalendar({ selectedDate, onSelectDate, calEvents }) {
+  const todayStr = new Date().toLocaleDateString('sv')
+  // Parse selectedDate to determine displayed month
+  const [displayMonth, setDisplayMonth] = useState(() => {
+    return selectedDate ? selectedDate.slice(0, 7) : todayStr.slice(0, 7)
+  })
+
+  // Update displayMonth when selectedDate changes to a different month
+  useEffect(() => {
+    if (selectedDate && selectedDate.slice(0, 7) !== displayMonth) {
+      setDisplayMonth(selectedDate.slice(0, 7))
+    }
+  }, [selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [year, mon] = displayMonth.split('-').map(Number)
+
+  function prevMonth() {
+    const d = new Date(year, mon - 2, 1)
+    setDisplayMonth(d.toLocaleDateString('sv').slice(0, 7))
+  }
+  function nextMonth() {
+    const d = new Date(year, mon, 1)
+    setDisplayMonth(d.toLocaleDateString('sv').slice(0, 7))
+  }
+
+  // Build calendar grid
+  const firstDay = new Date(year, mon - 1, 1).getDay() // 0=Sun
+  const daysInMonth = new Date(year, mon, 0).getDate()
+  const cells = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const monthLabel = new Date(year, mon - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+
+  return (
+    <div className="card" style={{ marginBottom: 12, padding: '12px 12px 8px' }}>
+      <div className="cal-nav" style={{ marginBottom: 8 }}>
+        <button onClick={prevMonth} style={{ background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
+          <ChevronLeft size={16} />
+        </button>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--rhino)' }}>{monthLabel}</span>
+        <button onClick={nextMonth} style={{ background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      <div className="cal-grid">
+        {DAY_HEADERS.map(h => (
+          <div key={h} className="cal-day-header" style={{ fontSize: 10 }}>{h}</div>
+        ))}
+        {cells.map((day, idx) => {
+          if (!day) return <div key={`e-${idx}`} />
+          const dateStr = `${displayMonth}-${String(day).padStart(2, '0')}`
+          const evs = calEvents[dateStr] || []
+          const isToday = dateStr === todayStr
+          const isSelected = dateStr === selectedDate
+          return (
+            <div
+              key={dateStr}
+              className={`cal-day${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
+              style={{ minHeight: 32, padding: '2px 1px', cursor: 'pointer' }}
+              onClick={() => onSelectDate(dateStr)}
+            >
+              <span className="cal-day-num" style={{ fontSize: 12 }}>{day}</span>
+              {evs.length > 0 && (
+                <div className="cal-dots">
+                  {evs.slice(0, 3).map((ev, i) => (
+                    <div
+                      key={i}
+                      className="cal-dot"
+                      style={{ background: ev.type === 'medical_event' ? 'var(--dull-pink)' : 'var(--rhino-dim)' }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export default function TodayTab({ selectedCatId, onSelectCat }) {
   const [items, setItems] = useState([])
   const [cats, setCats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [completing, setCompleting] = useState(new Set())
-  const [view, setView] = useState('list')
+  const [doneIds, setDoneIds] = useState(new Set())
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('sv'))
+  const [calEvents, setCalEvents] = useState({})
+  const calMonth = useRef(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -40,7 +121,6 @@ export default function TodayTab() {
       ])
       setItems(todayData)
       setCats(catsData)
-      setCompleting(new Set())
     } catch (err) {
       setError(err.message)
     } finally {
@@ -50,106 +130,102 @@ export default function TodayTab() {
 
   useEffect(() => { load() }, [load])
 
-  function complete(id) {
-    setCompleting(prev => new Set([...prev, id]))
-    setTimeout(async () => {
-      try {
-        await api(`/api/routines/${id}/complete`, { method: 'POST' })
-        load()
-      } catch (err) {
-        setError(err.message)
-        setCompleting(prev => { const s = new Set(prev); s.delete(id); return s })
-      }
-    }, 350)
-  }
+  // Fetch calendar events for the selected month
+  useEffect(() => {
+    const month = selectedDate.slice(0, 7)
+    if (calMonth.current === month) return
+    calMonth.current = month
+    api(`/api/calendar?month=${month}`)
+      .then(data => setCalEvents(data))
+      .catch(() => {})
+  }, [selectedDate])
 
-  function scrollToCat(catId) {
-    document.getElementById(`cat-group-${catId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  async function markDone(id) {
+    setDoneIds(prev => new Set([...prev, id]))
+    try {
+      await api(`/api/routines/${id}/complete`, { method: 'POST' })
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   if (loading) return <div className="sub">กำลังโหลด...</div>
 
-  // Group by cat_id
-  const grouped = {}
-  items.forEach(it => {
-    if (!grouped[it.cat_id]) grouped[it.cat_id] = { name: it.cat_name, items: [] }
-    grouped[it.cat_id].items.push(it)
-  })
+  const filteredItems = selectedCatId
+    ? items.filter(it => it.cat_id === selectedCatId)
+    : items
+
+  const selectedDateLabel = (() => {
+    const today = new Date().toLocaleDateString('sv')
+    if (selectedDate === today) return 'วันนี้'
+    const d = new Date(selectedDate + 'T00:00:00')
+    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })
+  })()
 
   return (
     <>
-      {/* View toggle */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button
-          className={`view-toggle${view === 'list' ? ' active' : ''}`}
-          onClick={() => setView('list')}
-          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-        >
-          <List size={14} /> รายการ
-        </button>
-        <button
-          className={`view-toggle${view === 'calendar' ? ' active' : ''}`}
-          onClick={() => setView('calendar')}
-          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-        >
-          <CalendarDays size={14} /> ปฏิทิน
-        </button>
+      {/* Avatar strip (only when > 1 cat) */}
+      {cats.length > 1 && (
+        <CatAvatarStrip cats={cats} selectedCatId={selectedCatId} onSelect={onSelectCat} />
+      )}
+
+      {/* Greeting card */}
+      <div className="greeting-card">
+        <div className="greeting-text">{greeting()}</div>
+        <div className="greeting-sub">
+          {filteredItems.length > 0
+            ? `มี ${filteredItems.length} รายการที่ต้องดูแล`
+            : 'วันนี้ดูแลครบแล้ว!'}
+        </div>
       </div>
 
-      {view === 'calendar' ? (
-        <div className="card">
-          <CalendarView />
+      {error && <div className="error-msg">โหลดไม่ได้: {error}</div>}
+
+      {/* Mini calendar */}
+      <MiniCalendar
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        calEvents={calEvents}
+      />
+
+      {/* Section header */}
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--rhino-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+        {selectedDateLabel}
+      </div>
+
+      {/* Routine list */}
+      {!error && filteredItems.length === 0 && (
+        <div className="empty-state">
+          <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
+          <div className="empty-title">เยี่ยมมาก!</div>
+          <div className="empty-sub">ไม่มีรายการที่ต้องทำ</div>
         </div>
-      ) : (
-        <>
-          {/* Avatar strip (only when > 1 cat) */}
-          {cats.length > 1 && (
-            <CatAvatarStrip cats={cats} onSelect={scrollToCat} />
-          )}
+      )}
 
-          <div className="greeting-card">
-            <div className="greeting-text">{greeting()}</div>
-            <div className="greeting-sub">
-              {items.length > 0
-                ? `มี ${items.length} รายการที่ต้องดูแลวันนี้`
-                : 'วันนี้ดูแลครบแล้ว!'}
-            </div>
-          </div>
-
-          {error && <div className="error-msg">โหลดไม่ได้: {error}</div>}
-
-          {!error && items.length === 0 && (
-            <div className="empty-state">
-              <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
-              <div className="empty-title">เยี่ยมมาก!</div>
-              <div className="empty-sub">วันนี้ไม่มีอะไรต้องทำแล้ว</div>
-            </div>
-          )}
-
-          {Object.entries(grouped).map(([catId, group]) => (
-            <div key={catId} id={`cat-group-${catId}`} style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <CatAvatar name={group.name} size={24} />
-                <span className="cat-name">{group.name}</span>
+      {filteredItems.length > 0 && (
+        <div className="card" style={{ padding: 0 }}>
+          {filteredItems.map(it => {
+            const done = doneIds.has(it.id)
+            return (
+              <div
+                key={it.id}
+                className={`routine-row${done ? ' done-anim' : ''}`}
+                style={{ padding: '10px 16px' }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+                  {isOverdue(it) && <span className="overdue-badge">เลยกำหนด</span>}
+                  <span style={{ fontSize: 14 }}>{it.title}</span>
+                </span>
+                {!done && (
+                  <button className="done" onClick={() => markDone(it.id)}>ทำแล้ว</button>
+                )}
+                {done && (
+                  <span style={{ fontSize: 12, color: 'var(--rhino-dim)' }}>✓ เสร็จแล้ว</span>
+                )}
               </div>
-              <div className="card" style={{ padding: 0 }}>
-                {group.items.map(it => (
-                  <div
-                    key={it.id}
-                    className={`routine-row${completing.has(it.id) ? ' completing' : ''}`}
-                    style={{ padding: '10px 16px' }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-                      {isOverdue(it) && <span className="overdue-badge">เลยกำหนด</span>}
-                      <span style={{ fontSize: 14 }}>{it.title}</span>
-                    </span>
-                    <button className="done" onClick={() => complete(it.id)}>ทำแล้ว</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </>
+            )
+          })}
+        </div>
       )}
     </>
   )

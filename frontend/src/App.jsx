@@ -18,6 +18,7 @@ export default function App() {
   const [tab, setTab] = useState('today')
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
+  const [selectedCatId, setSelectedCatId] = useState(null)
 
   useEffect(() => {
     if (!LIFF_ID) {
@@ -31,6 +32,7 @@ export default function App() {
         setTokenGetter(() => liff.getIDToken())
         try {
           const cats = await api('/api/cats')
+          if (cats.length > 0) setSelectedCatId(cats[0].id)
           setTab(cats.length === 0 ? 'cats' : 'today')
         } catch {
           // fallback to default tab if check fails
@@ -65,8 +67,8 @@ export default function App() {
     <>
       {header}
       <div className="wrap">
-        {tab === 'today'    && <TodayTab />}
-        {tab === 'cats'     && <CatsTab />}
+        {tab === 'today'    && <TodayTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} />}
+        {tab === 'cats'     && <CatsTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} />}
         {tab === 'settings' && <SettingsTab />}
       </div>
       <div className="tabbar">

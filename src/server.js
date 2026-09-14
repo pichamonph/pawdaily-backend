@@ -547,6 +547,159 @@ app.get('/api/calendar', requireLiffAuth, async (req, res) => {
   }
 });
 
+// ===== Ownership helpers for edit/delete =====
+async function assertOwnsRoutine(lineUserId, routineId) {
+  const r = await query(
+    `SELECT routines.* FROM routines JOIN cats ON cats.id = routines.cat_id JOIN users ON users.id = cats.owner_id WHERE routines.id = $1 AND users.line_user_id = $2`,
+    [routineId, lineUserId]
+  );
+  return r.rows[0] || null;
+}
+
+async function assertOwnsWeightLog(lineUserId, logId) {
+  const r = await query(
+    `SELECT weight_logs.* FROM weight_logs JOIN cats ON cats.id = weight_logs.cat_id JOIN users ON users.id = cats.owner_id WHERE weight_logs.id = $1 AND users.line_user_id = $2`,
+    [logId, lineUserId]
+  );
+  return r.rows[0] || null;
+}
+
+async function assertOwnsMedicalEvent(lineUserId, eventId) {
+  const r = await query(
+    `SELECT medical_events.* FROM medical_events JOIN cats ON cats.id = medical_events.cat_id JOIN users ON users.id = cats.owner_id WHERE medical_events.id = $1 AND users.line_user_id = $2`,
+    [eventId, lineUserId]
+  );
+  return r.rows[0] || null;
+}
+
+async function assertOwnsExpense(lineUserId, expenseId) {
+  const r = await query(
+    `SELECT expenses.* FROM expenses JOIN cats ON cats.id = expenses.cat_id JOIN users ON users.id = cats.owner_id WHERE expenses.id = $1 AND users.line_user_id = $2`,
+    [expenseId, lineUserId]
+  );
+  return r.rows[0] || null;
+}
+
+async function assertOwnsDiaryEntry(lineUserId, entryId) {
+  const r = await query(
+    `SELECT diary_entries.* FROM diary_entries JOIN cats ON cats.id = diary_entries.cat_id JOIN users ON users.id = cats.owner_id WHERE diary_entries.id = $1 AND users.line_user_id = $2`,
+    [entryId, lineUserId]
+  );
+  return r.rows[0] || null;
+}
+
+// PUT /api/routines/:id
+app.put('/api/routines/:id', requireLiffAuth, async (req, res) => {
+  const routine = await assertOwnsRoutine(req.lineUserId, req.params.id);
+  if (!routine) return res.status(404).json({ error: 'routine not found' });
+  const { title, frequency_days } = req.body;
+  const updated = await query(
+    'UPDATE routines SET title = COALESCE($1, title), frequency_days = COALESCE($2, frequency_days) WHERE id = $3 RETURNING *',
+    [title || null, frequency_days || null, routine.id]
+  );
+  res.json(updated.rows[0]);
+});
+
+// DELETE /api/routines/:id
+app.delete('/api/routines/:id', requireLiffAuth, async (req, res) => {
+  const routine = await assertOwnsRoutine(req.lineUserId, req.params.id);
+  if (!routine) return res.status(404).json({ error: 'routine not found' });
+  await query('UPDATE routines SET active = FALSE WHERE id = $1', [routine.id]);
+  res.status(204).end();
+});
+
+// PUT /api/weight/:id
+app.put('/api/weight/:id', requireLiffAuth, async (req, res) => {
+  const log = await assertOwnsWeightLog(req.lineUserId, req.params.id);
+  if (!log) return res.status(404).json({ error: 'weight log not found' });
+  const { weight_kg } = req.body;
+  const updated = await query(
+    'UPDATE weight_logs SET weight_kg = COALESCE($1, weight_kg) WHERE id = $2 RETURNING *',
+    [weight_kg || null, log.id]
+  );
+  res.json(updated.rows[0]);
+});
+
+// DELETE /api/weight/:id
+app.delete('/api/weight/:id', requireLiffAuth, async (req, res) => {
+  const log = await assertOwnsWeightLog(req.lineUserId, req.params.id);
+  if (!log) return res.status(404).json({ error: 'weight log not found' });
+  await query('DELETE FROM weight_logs WHERE id = $1', [log.id]);
+  res.status(204).end();
+});
+
+// PUT /api/medical-events/:id
+app.put('/api/medical-events/:id', requireLiffAuth, async (req, res) => {
+  const ev = await assertOwnsMedicalEvent(req.lineUserId, req.params.id);
+  if (!ev) return res.status(404).json({ error: 'medical event not found' });
+  const { name, event_date, next_due_date, next_due_time, note, type } = req.body;
+  const updated = await query(
+    `UPDATE medical_events SET
+      type = COALESCE($1, type),
+      name = COALESCE($2, name),
+      event_date = COALESCE($3, event_date),
+      next_due_date = $4,
+      next_due_time = $5,
+      note = $6
+     WHERE id = $7 RETURNING *`,
+    [type || null, name || null, event_date || null, next_due_date || null, next_due_time || null, note || null, ev.id]
+  );
+  res.json(updated.rows[0]);
+});
+
+// DELETE /api/medical-events/:id
+app.delete('/api/medical-events/:id', requireLiffAuth, async (req, res) => {
+  const ev = await assertOwnsMedicalEvent(req.lineUserId, req.params.id);
+  if (!ev) return res.status(404).json({ error: 'medical event not found' });
+  await query('DELETE FROM medical_events WHERE id = $1', [ev.id]);
+  res.status(204).end();
+});
+
+// PUT /api/expenses/:id
+app.put('/api/expenses/:id', requireLiffAuth, async (req, res) => {
+  const expense = await assertOwnsExpense(req.lineUserId, req.params.id);
+  if (!expense) return res.status(404).json({ error: 'expense not found' });
+  const { amount, category, note, expense_date } = req.body;
+  const updated = await query(
+    `UPDATE expenses SET
+      amount = COALESCE($1, amount),
+      category = COALESCE($2, category),
+      note = $3,
+      expense_date = COALESCE($4, expense_date)
+     WHERE id = $5 RETURNING *`,
+    [amount || null, category || null, note !== undefined ? note : expense.note, expense_date || null, expense.id]
+  );
+  res.json(updated.rows[0]);
+});
+
+// DELETE /api/expenses/:id
+app.delete('/api/expenses/:id', requireLiffAuth, async (req, res) => {
+  const expense = await assertOwnsExpense(req.lineUserId, req.params.id);
+  if (!expense) return res.status(404).json({ error: 'expense not found' });
+  await query('DELETE FROM expenses WHERE id = $1', [expense.id]);
+  res.status(204).end();
+});
+
+// PUT /api/diary/:id
+app.put('/api/diary/:id', requireLiffAuth, async (req, res) => {
+  const entry = await assertOwnsDiaryEntry(req.lineUserId, req.params.id);
+  if (!entry) return res.status(404).json({ error: 'diary entry not found' });
+  const { mood, note } = req.body;
+  const updated = await query(
+    'UPDATE diary_entries SET mood = COALESCE($1, mood), note = $2 WHERE id = $3 RETURNING *',
+    [mood || null, note !== undefined ? note : entry.note, entry.id]
+  );
+  res.json(updated.rows[0]);
+});
+
+// DELETE /api/diary/:id
+app.delete('/api/diary/:id', requireLiffAuth, async (req, res) => {
+  const entry = await assertOwnsDiaryEntry(req.lineUserId, req.params.id);
+  if (!entry) return res.status(404).json({ error: 'diary entry not found' });
+  await query('DELETE FROM diary_entries WHERE id = $1', [entry.id]);
+  res.status(204).end();
+});
+
 // เสิร์ฟหน้าจอ LIFF (build output จาก frontend/ หลังรัน npm run build)
 app.use(express.static(path.join(__dirname, '../public')));
 

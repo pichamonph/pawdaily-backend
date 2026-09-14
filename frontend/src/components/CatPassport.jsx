@@ -1,27 +1,66 @@
 import { useState, useEffect, useRef } from 'react'
-import { Camera, Plus, ListChecks, Scale, Stethoscope, Wallet, ImagePlus, Calendar, Pencil, BookOpen, Laugh, Smile, Meh, Frown } from 'lucide-react'
+import {
+  Camera, Plus, ListChecks, Scale, Stethoscope, Wallet, ImagePlus,
+  Calendar, Pencil, BookOpen, Laugh, Smile, Meh, Frown, ChevronLeft, Trash2,
+} from 'lucide-react'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
 import WeightChart from './WeightChart'
 
 // ===== helpers =====
-// ใช้ toLocaleDateString('sv') เพื่อให้ได้ YYYY-MM-DD ตาม timezone ของ device (ไม่ใช่ UTC)
 function today() { return new Date().toLocaleDateString('sv') }
 
 function fmtDate(dateStr) {
   if (!dateStr) return ''
-  // slice 10 ตัวแรก (YYYY-MM-DD) แล้วต่อ T00:00:00 ให้ JS ตีความเป็น local midnight ไม่ใช่ UTC midnight
   const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00')
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function isDueSoon(dateStr) {
   if (!dateStr) return false
-  // เปรียบเทียบ YYYY-MM-DD string ตรง ๆ ไม่ผ่าน Date object เพื่อกัน timezone shift
   const target = String(dateStr).slice(0, 10)
   const todayStr = new Date().toLocaleDateString('sv')
   const limitStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('sv')
   return target >= todayStr && target <= limitStr
+}
+
+// ===== Breed config =====
+const BREEDS = [
+  'ไทย / วิเชียรมาศ', 'เปอร์เซีย', 'สก็อตติชโฟลด์', 'อเมริกันชอร์ตแฮร์',
+  'เมนคูน', 'บริติชชอร์ตแฮร์', 'รัสเชียนบลู', 'สยาม', 'สายพันธุ์ผสม / ไม่ทราบ', 'อื่นๆ',
+]
+
+function BreedSelect({ value, onChange }) {
+  const knownBreed = BREEDS.includes(value)
+  const selectVal = knownBreed ? value : (value ? 'อื่นๆ' : '')
+  const [customVal, setCustomVal] = useState(!knownBreed ? value : '')
+  const showCustom = selectVal === 'อื่นๆ'
+
+  function handleSelect(e) {
+    const v = e.target.value
+    if (v === 'อื่นๆ') {
+      onChange('อื่นๆ')
+    } else {
+      onChange(v)
+    }
+  }
+
+  function handleCustom(e) {
+    setCustomVal(e.target.value)
+    onChange(e.target.value)
+  }
+
+  return (
+    <>
+      <select value={selectVal} onChange={handleSelect}>
+        <option value="">-- เลือกสายพันธุ์ --</option>
+        {BREEDS.map(b => <option key={b} value={b}>{b}</option>)}
+      </select>
+      {showCustom && (
+        <input value={customVal} onChange={handleCustom} placeholder="ระบุสายพันธุ์" />
+      )}
+    </>
+  )
 }
 
 // ===== Diary config =====
@@ -32,21 +71,32 @@ const MOODS = [
   { id: 'bad',   Icon: Frown,  label: 'ไม่ดี',  color: '#dc2626' },
 ]
 
+const MOOD_COLORS = { great: '#16a34a', good: '#65a30d', okay: '#d97706', bad: '#dc2626' }
+
 // ===== กิจวัตร panel =====
 function RoutinesPanel({ catId, version, onAdd }) {
   const [routines, setRoutines] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(null)
 
-  useEffect(() => {
-    let ok = true
+  function load() {
     setLoading(true)
     api(`/api/cats/${catId}/routines`)
-      .then(d => { if (ok) { setRoutines(d); setError(null) } })
-      .catch(e => { if (ok) setError(e.message) })
-      .finally(() => { if (ok) setLoading(false) })
-    return () => { ok = false }
-  }, [catId, version])
+      .then(d => { setRoutines(d); setError(null) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [catId, version]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function confirmDelete(id) {
+    if (!window.confirm('ต้องการลบรายการนี้?')) return
+    try {
+      await api(`/api/routines/${id}`, { method: 'DELETE' })
+      load()
+    } catch (e) { setError(e.message) }
+  }
 
   if (loading) return <div className="sub">กำลังโหลด...</div>
   if (error) return <div className="error-msg">{error}</div>
@@ -62,12 +112,25 @@ function RoutinesPanel({ catId, version, onAdd }) {
         : routines.map(r => (
           <div className="routine-row" key={r.id}>
             <span style={{ fontSize: 14 }}>{r.title}</span>
-            <span style={{ fontSize: 12, color: 'var(--rhino-dim)', whiteSpace: 'nowrap' }}>
-              ทุก {r.frequency_days} วัน
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--rhino-dim)', whiteSpace: 'nowrap' }}>
+                ทุก {r.frequency_days} วัน
+              </span>
+              <div className="row-actions">
+                <button className="icon-btn" onClick={() => setEditing(r)}><Pencil size={13} /></button>
+                <button className="icon-btn del" onClick={() => confirmDelete(r.id)}><Trash2 size={13} /></button>
+              </div>
+            </div>
           </div>
         ))
       }
+      {editing && (
+        <EditRoutineModal
+          routine={editing}
+          onDone={() => { setEditing(null); load() }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   )
 }
@@ -77,16 +140,25 @@ function WeightPanel({ catId, version, onAdd }) {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(null)
 
-  useEffect(() => {
-    let ok = true
+  function load() {
     setLoading(true)
     api(`/api/cats/${catId}/weight`)
-      .then(d => { if (ok) { setLogs(d); setError(null) } })
-      .catch(e => { if (ok) setError(e.message) })
-      .finally(() => { if (ok) setLoading(false) })
-    return () => { ok = false }
-  }, [catId, version])
+      .then(d => { setLogs(d); setError(null) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [catId, version]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function confirmDelete(id) {
+    if (!window.confirm('ต้องการลบรายการนี้?')) return
+    try {
+      await api(`/api/weight/${id}`, { method: 'DELETE' })
+      load()
+    } catch (e) { setError(e.message) }
+  }
 
   const latest = logs.length > 0 ? logs[logs.length - 1] : null
 
@@ -110,17 +182,30 @@ function WeightPanel({ catId, version, onAdd }) {
       {logs.length > 0 && (
         <table className="weight-table">
           <thead>
-            <tr><th>วันที่</th><th>น้ำหนัก (kg)</th></tr>
+            <tr><th>วันที่</th><th>น้ำหนัก (kg)</th><th></th></tr>
           </thead>
           <tbody>
             {[...logs].reverse().map(l => (
               <tr key={l.id}>
                 <td>{fmtDate(l.recorded_at)}</td>
                 <td style={{ fontWeight: 600 }}>{parseFloat(l.weight_kg)}</td>
+                <td>
+                  <div className="row-actions">
+                    <button className="icon-btn" onClick={() => setEditing(l)}><Pencil size={13} /></button>
+                    <button className="icon-btn del" onClick={() => confirmDelete(l.id)}><Trash2 size={13} /></button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+      {editing && (
+        <EditWeightModal
+          log={editing}
+          onDone={() => { setEditing(null); load() }}
+          onClose={() => setEditing(null)}
+        />
       )}
     </>
   )
@@ -134,16 +219,25 @@ function HealthPanel({ catId, version, onAdd }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(null)
 
-  useEffect(() => {
-    let ok = true
+  function load() {
     setLoading(true)
     api(`/api/cats/${catId}/medical-events`)
-      .then(d => { if (ok) { setEvents(d); setError(null) } })
-      .catch(e => { if (ok) setError(e.message) })
-      .finally(() => { if (ok) setLoading(false) })
-    return () => { ok = false }
-  }, [catId, version])
+      .then(d => { setEvents(d); setError(null) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [catId, version]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function confirmDelete(id) {
+    if (!window.confirm('ต้องการลบรายการนี้?')) return
+    try {
+      await api(`/api/medical-events/${id}`, { method: 'DELETE' })
+      load()
+    } catch (e) { setError(e.message) }
+  }
 
   if (loading) return <div className="sub">กำลังโหลด...</div>
   if (error) return <div className="error-msg">{error}</div>
@@ -182,9 +276,20 @@ function HealthPanel({ catId, version, onAdd }) {
               )}
               {ev.note && <div style={{ fontSize: 12, color: 'var(--rhino-dim)' }}>{ev.note}</div>}
             </div>
+            <div className="row-actions">
+              <button className="icon-btn" onClick={() => setEditing(ev)}><Pencil size={13} /></button>
+              <button className="icon-btn del" onClick={() => confirmDelete(ev.id)}><Trash2 size={13} /></button>
+            </div>
           </div>
         ))
       }
+      {editing && (
+        <EditMedicalModal
+          event={editing}
+          onDone={() => { setEditing(null); load() }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   )
 }
@@ -200,17 +305,26 @@ function ExpensesPanel({ catId, version, onAdd }) {
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(null)
   const month = new Date().toISOString().slice(0, 7)
 
-  useEffect(() => {
-    let ok = true
+  function load() {
     setLoading(true)
     api(`/api/cats/${catId}/expenses?month=${month}`)
-      .then(d => { if (ok) { setExpenses(d); setError(null) } })
-      .catch(e => { if (ok) setError(e.message) })
-      .finally(() => { if (ok) setLoading(false) })
-    return () => { ok = false }
-  }, [catId, version, month])
+      .then(d => { setExpenses(d); setError(null) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [catId, version, month]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function confirmDelete(id) {
+    if (!window.confirm('ต้องการลบรายการนี้?')) return
+    try {
+      await api(`/api/expenses/${id}`, { method: 'DELETE' })
+      load()
+    } catch (e) { setError(e.message) }
+  }
 
   const total = expenses.reduce((s, e) => s + parseFloat(e.amount), 0)
 
@@ -245,28 +359,92 @@ function ExpensesPanel({ catId, version, onAdd }) {
             <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>
               {parseFloat(e.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿
             </div>
+            <div className="row-actions">
+              <button className="icon-btn" onClick={() => setEditing(e)}><Pencil size={13} /></button>
+              <button className="icon-btn del" onClick={() => confirmDelete(e.id)}><Trash2 size={13} /></button>
+            </div>
           </div>
         ))
       }
+      {editing && (
+        <EditExpenseModal
+          expense={editing}
+          onDone={() => { setEditing(null); load() }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   )
 }
 
-// ===== Diary panel =====
+// ===== Diary panel (with mood calendar) =====
+const DAY_HEADERS_DIARY = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+
 function DiaryPanel({ catId, version, onAdd }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [editing, setEditing] = useState(null)
+  const [displayMonth, setDisplayMonth] = useState(() => new Date().toLocaleDateString('sv').slice(0, 7))
+  const [selectedDate, setSelectedDate] = useState(null)
 
-  useEffect(() => {
-    let ok = true
+  function load() {
     setLoading(true)
     api(`/api/cats/${catId}/diary`)
-      .then(d => { if (ok) { setEntries(d); setError(null) } })
-      .catch(e => { if (ok) setError(e.message) })
-      .finally(() => { if (ok) setLoading(false) })
-    return () => { ok = false }
-  }, [catId, version])
+      .then(d => { setEntries(d); setError(null) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [catId, version]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function confirmDelete(id) {
+    if (!window.confirm('ต้องการลบรายการนี้?')) return
+    try {
+      await api(`/api/diary/${id}`, { method: 'DELETE' })
+      load()
+    } catch (e) { setError(e.message) }
+  }
+
+  // Build mood map from entries
+  const moodMap = {}
+  entries.forEach(e => {
+    const d = String(e.entry_date).slice(0, 10)
+    if (!moodMap[d]) moodMap[d] = e
+  })
+
+  const [year, mon] = displayMonth.split('-').map(Number)
+  const todayStr = new Date().toLocaleDateString('sv')
+  const firstDay = new Date(year, mon - 1, 1).getDay()
+  const daysInMonth = new Date(year, mon, 0).getDate()
+  const cells = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const monthLabel = new Date(year, mon - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+
+  function prevMonth() {
+    const d = new Date(year, mon - 2, 1)
+    setDisplayMonth(d.toLocaleDateString('sv').slice(0, 7))
+  }
+  function nextMonth() {
+    const d = new Date(year, mon, 1)
+    setDisplayMonth(d.toLocaleDateString('sv').slice(0, 7))
+  }
+
+  // Mood summary for this month
+  const moodCounts = {}
+  MOODS.forEach(m => { moodCounts[m.id] = 0 })
+  Object.entries(moodMap).forEach(([dateStr, entry]) => {
+    if (dateStr.slice(0, 7) === displayMonth && entry.mood) {
+      moodCounts[entry.mood] = (moodCounts[entry.mood] || 0) + 1
+    }
+  })
+
+  // Entries for selected date or most recent
+  const dateEntries = selectedDate
+    ? entries.filter(e => String(e.entry_date).slice(0, 10) === selectedDate)
+    : entries.slice(0, 5)
 
   if (loading) return <div className="sub">กำลังโหลด...</div>
   if (error) return <div className="error-msg">{error}</div>
@@ -275,11 +453,70 @@ function DiaryPanel({ catId, version, onAdd }) {
     <>
       <div className="section-header">
         <span className="section-header-title">ไดอารี่</span>
-        <button className="section-add-btn" onClick={onAdd}><Plus size={12} /> เพิ่ม</button>
+        <button className="section-add-btn" onClick={() => onAdd(selectedDate || today())}><Plus size={12} /> เพิ่ม</button>
       </div>
-      {entries.length === 0
-        ? <div className="empty">ยังไม่มีบันทึกไดอารี่</div>
-        : entries.map(entry => {
+
+      {/* Mood calendar */}
+      <div style={{ marginBottom: 12 }}>
+        <div className="cal-nav" style={{ marginBottom: 6 }}>
+          <button onClick={prevMonth} style={{ background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
+            <ChevronLeft size={15} />
+          </button>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--rhino)' }}>{monthLabel}</span>
+          <button onClick={nextMonth} style={{ background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
+            <ChevronLeft size={15} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+        </div>
+        <div className="mood-cal-grid">
+          {DAY_HEADERS_DIARY.map(h => (
+            <div key={h} style={{ textAlign: 'center', fontSize: 10, color: 'var(--rhino-dim)', paddingBottom: 4 }}>{h}</div>
+          ))}
+          {cells.map((day, idx) => {
+            if (!day) return <div key={`e-${idx}`} />
+            const dateStr = `${displayMonth}-${String(day).padStart(2, '0')}`
+            const entry = moodMap[dateStr]
+            const isToday = dateStr === todayStr
+            const isSelected = dateStr === selectedDate
+            return (
+              <div
+                key={dateStr}
+                className={`mood-cal-day${entry ? ' has-mood' : ''}${isToday ? ' today-ring' : ''}`}
+                style={{
+                  background: entry ? MOOD_COLORS[entry.mood] : undefined,
+                  outline: isSelected ? '2px solid var(--dull-pink)' : undefined,
+                  outlineOffset: isSelected ? 1 : undefined,
+                }}
+                onClick={() => {
+                  setSelectedDate(isSelected ? null : dateStr)
+                  if (!entry) onAdd(dateStr)
+                }}
+              >
+                {day}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Mood summary */}
+        <div className="mood-summary">
+          {MOODS.map(m => moodCounts[m.id] > 0 && (
+            <span key={m.id}>
+              <m.Icon size={11} color={m.color} style={{ verticalAlign: 'middle', marginRight: 2 }} />
+              {m.label}: <strong>{moodCounts[m.id]}</strong>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Entry list */}
+      {selectedDate && (
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--rhino-dim)', marginBottom: 6 }}>
+          {new Date(selectedDate + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })}
+        </div>
+      )}
+      {dateEntries.length === 0
+        ? <div className="empty">{selectedDate ? 'ไม่มีบันทึกวันนี้' : 'ยังไม่มีบันทึกไดอารี่'}</div>
+        : dateEntries.map(entry => {
           const moodCfg = MOODS.find(m => m.id === entry.mood) || MOODS[2]
           const { Icon } = moodCfg
           return (
@@ -292,15 +529,26 @@ function DiaryPanel({ catId, version, onAdd }) {
               {entry.photo_url && (
                 <img src={entry.photo_url} alt="diary" className="diary-thumb" />
               )}
+              <div className="row-actions">
+                <button className="icon-btn" onClick={() => setEditing(entry)}><Pencil size={13} /></button>
+                <button className="icon-btn del" onClick={() => confirmDelete(entry.id)}><Trash2 size={13} /></button>
+              </div>
             </div>
           )
         })
       }
+      {editing && (
+        <EditDiaryModal
+          entry={editing}
+          onDone={() => { setEditing(null); load() }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   )
 }
 
-// ===== Modals =====
+// ===== Add Modals =====
 function AddRoutineModal({ catId, onDone, onClose }) {
   const [title, setTitle] = useState('')
   const [freq, setFreq] = useState('1')
@@ -461,11 +709,11 @@ function AddExpenseModal({ catId, onDone, onClose }) {
   )
 }
 
-function AddDiaryModal({ catId, onDone, onClose }) {
+function AddDiaryModal({ catId, initialDate, onDone, onClose }) {
   const [mood, setMood] = useState('good')
   const [note, setNote] = useState('')
   const [photo, setPhoto] = useState(null)
-  const [entryDate, setEntryDate] = useState(today())
+  const [entryDate, setEntryDate] = useState(initialDate || today())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -527,10 +775,202 @@ function AddDiaryModal({ catId, onDone, onClose }) {
   )
 }
 
+// ===== Edit Modals =====
+function EditRoutineModal({ routine, onDone, onClose }) {
+  const [title, setTitle] = useState(routine.title)
+  const [freq, setFreq] = useState(String(routine.frequency_days))
+  const [error, setError] = useState(null)
+
+  async function submit() {
+    if (!title.trim()) return
+    try {
+      await api(`/api/routines/${routine.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: title.trim(), frequency_days: parseInt(freq, 10) }),
+      })
+      onDone()
+    } catch (e) { setError(e.message) }
+  }
+
+  return (
+    <Modal title="แก้ไขกิจวัตร" onClose={onClose}>
+      {error && <div className="error-msg">{error}</div>}
+      <label className="form-label">ชื่อกิจวัตร</label>
+      <input value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+      <label className="form-label">ความถี่</label>
+      <select value={freq} onChange={e => setFreq(e.target.value)}>
+        <option value="1">ทุกวัน</option>
+        <option value="7">ทุกสัปดาห์</option>
+        <option value="30">ทุกเดือน</option>
+      </select>
+      <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
+    </Modal>
+  )
+}
+
+function EditWeightModal({ log, onDone, onClose }) {
+  const [weight, setWeight] = useState(String(parseFloat(log.weight_kg)))
+  const [error, setError] = useState(null)
+
+  async function submit() {
+    const val = parseFloat(weight)
+    if (!weight || isNaN(val) || val <= 0) return
+    try {
+      await api(`/api/weight/${log.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ weight_kg: val }),
+      })
+      onDone()
+    } catch (e) { setError(e.message) }
+  }
+
+  return (
+    <Modal title="แก้ไขน้ำหนัก" onClose={onClose}>
+      {error && <div className="error-msg">{error}</div>}
+      <label className="form-label">น้ำหนัก (kg)</label>
+      <input type="number" value={weight} onChange={e => setWeight(e.target.value)} step="0.1" min="0" autoFocus />
+      <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
+    </Modal>
+  )
+}
+
+function EditMedicalModal({ event: ev, onDone, onClose }) {
+  const [type, setType] = useState(ev.type)
+  const [name, setName] = useState(ev.name)
+  const [eventDate, setEventDate] = useState(String(ev.event_date).slice(0, 10))
+  const [nextDue, setNextDue] = useState(ev.next_due_date ? String(ev.next_due_date).slice(0, 10) : '')
+  const [nextDueTime, setNextDueTime] = useState(ev.next_due_time || '')
+  const [note, setNote] = useState(ev.note || '')
+  const [error, setError] = useState(null)
+
+  async function submit() {
+    if (!name.trim() || !eventDate) return
+    try {
+      await api(`/api/medical-events/${ev.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          type, name: name.trim(), event_date: eventDate,
+          next_due_date: nextDue || null,
+          next_due_time: nextDueTime || null,
+          note: note || null,
+        }),
+      })
+      onDone()
+    } catch (e) { setError(e.message) }
+  }
+
+  return (
+    <Modal title="แก้ไขบันทึกสุขภาพ" onClose={onClose}>
+      {error && <div className="error-msg">{error}</div>}
+      <label className="form-label">ประเภท</label>
+      <select value={type} onChange={e => setType(e.target.value)}>
+        {MEDICAL_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+      </select>
+      <label className="form-label">ชื่อ / รายละเอียด</label>
+      <input value={name} onChange={e => setName(e.target.value)} autoFocus />
+      <label className="form-label">วันที่ทำ</label>
+      <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} />
+      <label className="form-label">นัดครั้งถัดไป (ถ้ามี)</label>
+      <input type="date" value={nextDue} onChange={e => setNextDue(e.target.value)} />
+      <label className="form-label">เวลานัด</label>
+      <input type="time" value={nextDueTime} onChange={e => setNextDueTime(e.target.value)} disabled={!nextDue} />
+      <label className="form-label">หมายเหตุ</label>
+      <input value={note} onChange={e => setNote(e.target.value)} />
+      <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
+    </Modal>
+  )
+}
+
+function EditExpenseModal({ expense, onDone, onClose }) {
+  const [amount, setAmount] = useState(String(parseFloat(expense.amount)))
+  const [category, setCategory] = useState(expense.category)
+  const [note, setNote] = useState(expense.note || '')
+  const [expenseDate, setExpenseDate] = useState(String(expense.expense_date).slice(0, 10))
+  const [error, setError] = useState(null)
+
+  async function submit() {
+    const val = parseFloat(amount)
+    if (!amount || isNaN(val) || val <= 0) return
+    try {
+      await api(`/api/expenses/${expense.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ amount: val, category, note: note || null, expense_date: expenseDate }),
+      })
+      onDone()
+    } catch (e) { setError(e.message) }
+  }
+
+  return (
+    <Modal title="แก้ไขค่าใช้จ่าย" onClose={onClose}>
+      {error && <div className="error-msg">{error}</div>}
+      <label className="form-label">จำนวนเงิน (บาท)</label>
+      <input type="number" value={amount} onChange={e => setAmount(e.target.value)} step="0.01" min="0" autoFocus />
+      <label className="form-label">หมวดหมู่</label>
+      <select value={category} onChange={e => setCategory(e.target.value)}>
+        {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <label className="form-label">หมายเหตุ</label>
+      <input value={note} onChange={e => setNote(e.target.value)} />
+      <label className="form-label">วันที่</label>
+      <input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
+      <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
+    </Modal>
+  )
+}
+
+function EditDiaryModal({ entry, onDone, onClose }) {
+  const [mood, setMood] = useState(entry.mood)
+  const [note, setNote] = useState(entry.note || '')
+  const [error, setError] = useState(null)
+
+  async function submit() {
+    try {
+      await api(`/api/diary/${entry.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ mood, note: note || null }),
+      })
+      onDone()
+    } catch (e) { setError(e.message) }
+  }
+
+  return (
+    <Modal title="แก้ไขไดอารี่" onClose={onClose}>
+      {error && <div className="error-msg">{error}</div>}
+      <label className="form-label">อารมณ์</label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        {MOODS.map(({ id, Icon, label, color }) => (
+          <button
+            key={id}
+            className={`mood-btn${mood === id ? ' selected' : ''}`}
+            style={{ color: mood === id ? color : undefined }}
+            onClick={() => setMood(id)}
+            type="button"
+          >
+            <Icon size={22} color={color} strokeWidth={1.8} />
+            {label}
+          </button>
+        ))}
+      </div>
+      <label className="form-label">บันทึก</label>
+      <textarea
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        rows={3}
+        style={{
+          width: '100%', padding: '9px 10px', border: '1px solid rgba(74,93,128,0.3)',
+          borderRadius: 6, fontSize: 14, fontFamily: 'Kanit, sans-serif',
+          color: 'var(--rhino)', marginBottom: 8, resize: 'vertical', outline: 'none',
+        }}
+      />
+      <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
+    </Modal>
+  )
+}
+
 function EditCatModal({ cat, onDone, onClose }) {
   const [name, setName] = useState(cat.name)
   const [breed, setBreed] = useState(cat.breed || '')
-  const [birthday, setBirthday] = useState(cat.birthday ? cat.birthday.split('T')[0] : '')
+  const [birthday, setBirthday] = useState(cat.birthday ? String(cat.birthday).slice(0, 10) : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -556,7 +996,7 @@ function EditCatModal({ cat, onDone, onClose }) {
       <label className="form-label">ชื่อแมว *</label>
       <input value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อแมว" autoFocus />
       <label className="form-label">สายพันธุ์</label>
-      <input value={breed} onChange={e => setBreed(e.target.value)} placeholder="เช่น เปอร์เซีย, อเมริกันชอร์ตแฮร์" />
+      <BreedSelect value={breed} onChange={setBreed} />
       <label className="form-label">วันเกิด</label>
       <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)} />
       <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit} disabled={saving}>
@@ -566,24 +1006,28 @@ function EditCatModal({ cat, onDone, onClose }) {
   )
 }
 
-// ===== Sub-tab config =====
-const SUBTABS = [
-  { id: 'routines', Icon: ListChecks, label: 'กิจวัตร' },
-  { id: 'weight',   Icon: Scale,      label: 'น้ำหนัก' },
-  { id: 'health',   Icon: Stethoscope, label: 'สุขภาพ' },
-  { id: 'expenses', Icon: Wallet,     label: 'ค่าใช้จ่าย' },
-  { id: 'diary',    Icon: BookOpen,   label: 'ไดอารี่' },
+// ===== Grid menu config =====
+const MENU_ITEMS = [
+  { id: 'routines', Icon: ListChecks,  label: 'กิจวัตร',     color: '#2E4060' },
+  { id: 'weight',   Icon: Scale,       label: 'น้ำหนัก',     color: '#4A5D80' },
+  { id: 'health',   Icon: Stethoscope, label: 'สุขภาพ',      color: '#DD8C96' },
+  { id: 'expenses', Icon: Wallet,      label: 'ค่าใช้จ่าย',  color: '#E3982E' },
+  { id: 'diary',    Icon: BookOpen,    label: 'ไดอารี่',      color: '#65a30d' },
 ]
 
 // ===== Main CatPassport =====
-export default function CatPassport({ cat: initialCat }) {
+export default function CatPassport({ cat: initialCat, onCatUpdate }) {
   const [cat, setCat] = useState(initialCat)
-  const [activeTab, setActiveTab] = useState('routines')
+  const [activeSection, setActiveSection] = useState(null)
   const [modal, setModal] = useState(null)
+  const [diaryInitialDate, setDiaryInitialDate] = useState(null)
   const [versions, setVersions] = useState({ routines: 0, weight: 0, health: 0, expenses: 0, diary: 0 })
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const fileRef = useRef(null)
+
+  // Keep cat in sync if parent updates it
+  useEffect(() => { setCat(initialCat) }, [initialCat])
 
   const passportId = `PD-${String(cat.id).padStart(4, '0')}`
 
@@ -599,12 +1043,18 @@ export default function CatPassport({ cat: initialCat }) {
       form.append('photo', file)
       const updated = await apiForm(`/api/cats/${cat.id}/photo`, form)
       setCat(updated)
+      if (onCatUpdate) onCatUpdate(updated)
     } catch (err) {
       setUploadError(err.message)
     } finally {
       setUploading(false)
       e.target.value = ''
     }
+  }
+
+  function openDiaryAdd(dateStr) {
+    setDiaryInitialDate(dateStr || today())
+    setModal('diary')
   }
 
   return (
@@ -663,36 +1113,46 @@ export default function CatPassport({ cat: initialCat }) {
         <div style={{ fontSize: 12, color: 'var(--rhino-dim)', padding: '6px 16px' }}>กำลังอัปโหลด...</div>
       )}
 
-      {/* Sub-tabs */}
-      <div className="passport-tabs">
-        {SUBTABS.map(({ id, Icon, label }) => (
-          <button
-            key={id}
-            className={`passport-tab${activeTab === id ? ' active' : ''}`}
-            onClick={() => setActiveTab(id)}
-          >
-            <Icon size={15} strokeWidth={activeTab === id ? 2.5 : 1.8} />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
+      {/* Content area */}
       <div className="passport-content">
-        {activeTab === 'routines' && (
-          <RoutinesPanel catId={cat.id} version={versions.routines} onAdd={() => setModal('routine')} />
+        {activeSection === null && (
+          <div className="cat-menu-grid">
+            {MENU_ITEMS.map(({ id, Icon, label, color }) => (
+              <div
+                key={id}
+                className="cat-menu-item"
+                onClick={() => setActiveSection(id)}
+              >
+                <Icon size={28} color={color} strokeWidth={1.8} />
+                <span className="cat-menu-item-label">{label}</span>
+              </div>
+            ))}
+          </div>
         )}
-        {activeTab === 'weight' && (
-          <WeightPanel catId={cat.id} version={versions.weight} onAdd={() => setModal('weight')} />
-        )}
-        {activeTab === 'health' && (
-          <HealthPanel catId={cat.id} version={versions.health} onAdd={() => setModal('medical')} />
-        )}
-        {activeTab === 'expenses' && (
-          <ExpensesPanel catId={cat.id} version={versions.expenses} onAdd={() => setModal('expense')} />
-        )}
-        {activeTab === 'diary' && (
-          <DiaryPanel catId={cat.id} version={versions.diary} onAdd={() => setModal('diary')} />
+
+        {activeSection !== null && (
+          <>
+            <button className="cat-menu-back" onClick={() => setActiveSection(null)}>
+              <ChevronLeft size={16} />
+              กลับ
+            </button>
+
+            {activeSection === 'routines' && (
+              <RoutinesPanel catId={cat.id} version={versions.routines} onAdd={() => setModal('routine')} />
+            )}
+            {activeSection === 'weight' && (
+              <WeightPanel catId={cat.id} version={versions.weight} onAdd={() => setModal('weight')} />
+            )}
+            {activeSection === 'health' && (
+              <HealthPanel catId={cat.id} version={versions.health} onAdd={() => setModal('medical')} />
+            )}
+            {activeSection === 'expenses' && (
+              <ExpensesPanel catId={cat.id} version={versions.expenses} onAdd={() => setModal('expense')} />
+            )}
+            {activeSection === 'diary' && (
+              <DiaryPanel catId={cat.id} version={versions.diary} onAdd={openDiaryAdd} />
+            )}
+          </>
         )}
       </div>
 
@@ -710,12 +1170,12 @@ export default function CatPassport({ cat: initialCat }) {
         <AddExpenseModal catId={cat.id} onDone={() => { setModal(null); bump('expenses') }} onClose={() => setModal(null)} />
       )}
       {modal === 'diary' && (
-        <AddDiaryModal catId={cat.id} onDone={() => { setModal(null); bump('diary') }} onClose={() => setModal(null)} />
+        <AddDiaryModal catId={cat.id} initialDate={diaryInitialDate} onDone={() => { setModal(null); bump('diary') }} onClose={() => setModal(null)} />
       )}
       {modal === 'edit' && (
         <EditCatModal
           cat={cat}
-          onDone={(updated) => { setModal(null); setCat(updated) }}
+          onDone={(updated) => { setModal(null); setCat(updated); if (onCatUpdate) onCatUpdate(updated) }}
           onClose={() => setModal(null)}
         />
       )}

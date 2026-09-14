@@ -11,7 +11,7 @@
 
 body {
   margin: 0;
-  background: var(--almond);
+  background: #FFF9F8;
   color: var(--rhino);
   font-family: 'Kanit', -apple-system, sans-serif;
   padding-bottom: 72px;
@@ -571,3 +571,36 @@ input[type="date"] { color-scheme: light; }
 .cal-events { margin-top: 12px; }
 .cal-event-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--almond-dim); font-size: 13px; }
 .cal-event-row:last-child { border-bottom: none; }
+
+/* ===== Avatar selector strip ===== */
+.avatar-sel-strip { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 10px; margin-bottom: 4px; scrollbar-width: none; }
+.avatar-sel-strip::-webkit-scrollbar { display: none; }
+.avatar-sel-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; flex-shrink: 0; }
+.avatar-sel-item span { font-size: 11px; color: var(--rhino-dim); max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar-sel-item.active span { color: var(--rhino); font-weight: 600; }
+.avatar-sel-ring { border-radius: 50%; padding: 2px; border: 2.5px solid transparent; }
+.avatar-sel-item.active .avatar-sel-ring { border-color: var(--dull-pink); }
+
+/* ===== Cat menu grid ===== */
+.cat-menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+.cat-menu-item { background: #fff; border: 1px solid var(--almond-dim); border-radius: 14px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 1px 4px rgba(46,64,96,0.07); transition: border-color 0.15s; }
+.cat-menu-item:hover, .cat-menu-item:active { border-color: var(--dull-pink); }
+.cat-menu-item-label { font-size: 13px; font-weight: 600; color: var(--rhino); }
+.cat-menu-back { display: flex; align-items: center; gap: 6px; color: var(--rhino-dim); font-size: 13px; padding: 4px 0 12px; cursor: pointer; border: none; background: none; font-family: Kanit, sans-serif; }
+
+/* ===== Strikethrough done item ===== */
+.routine-row.done-anim span { text-decoration: line-through; color: var(--rhino-dim); opacity: 0.7; }
+
+/* ===== Diary mood calendar ===== */
+.mood-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mood-cal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; cursor: pointer; position: relative; }
+.mood-cal-day.has-mood { font-weight: 600; color: #fff; }
+.mood-cal-day.today-ring { outline: 2px solid var(--dull-pink); outline-offset: 1px; }
+.mood-summary { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--rhino-dim); }
+.mood-summary span strong { color: var(--rhino); }
+
+/* ===== Edit/delete icon buttons ===== */
+.row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.icon-btn { background: none; border: none; padding: 4px; border-radius: 6px; color: var(--rhino-dim); cursor: pointer; display: flex; align-items: center; }
+.icon-btn:hover { color: var(--rhino); background: var(--almond-dim); }
+.icon-btn.del:hover { color: #dc2626; background: #fee2e2; }

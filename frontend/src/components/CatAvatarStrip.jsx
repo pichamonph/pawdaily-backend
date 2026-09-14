@@ -1,33 +1,18 @@
 import CatAvatar from './CatAvatar'
 
-export default function CatAvatarStrip({ cats, onSelect }) {
+export default function CatAvatarStrip({ cats, selectedCatId, onSelect }) {
   return (
-    <div style={{
-      display: 'flex',
-      gap: 12,
-      overflowX: 'auto',
-      padding: '4px 0 8px',
-      marginBottom: 8,
-      scrollbarWidth: 'none',
-    }}>
+    <div className="avatar-sel-strip">
       {cats.map(cat => (
         <div
           key={cat.id}
+          className={`avatar-sel-item${cat.id === selectedCatId ? ' active' : ''}`}
           onClick={() => onSelect(cat.id)}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}
         >
-          <CatAvatar name={cat.name} size={44} photoUrl={cat.photo_url || undefined} />
-          <span style={{
-            fontSize: 11,
-            color: 'var(--rhino)',
-            maxWidth: 52,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            textAlign: 'center',
-          }}>
-            {cat.name}
-          </span>
+          <div className="avatar-sel-ring">
+            <CatAvatar name={cat.name} size={44} photoUrl={cat.photo_url || undefined} />
+          </div>
+          <span>{cat.name}</span>
         </div>
       ))}
     </div>
