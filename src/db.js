@@ -16,7 +16,9 @@ async function findOrCreateUser(lineUserId, displayName) {
   if (existing.rows.length > 0) return existing.rows[0];
 
   const inserted = await query(
-    'INSERT INTO users (line_user_id, display_name) VALUES ($1, $2) RETURNING *',
+    `INSERT INTO users (line_user_id, display_name, membership_expires_at)
+     VALUES ($1, $2, CURRENT_DATE + INTERVAL '30 days')
+     RETURNING *`,
     [lineUserId, displayName || null]
   );
   return inserted.rows[0];

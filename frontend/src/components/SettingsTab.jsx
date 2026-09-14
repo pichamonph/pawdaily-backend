@@ -4,8 +4,18 @@ import { api } from '../api'
 
 function fmtDate(dateStr) {
   if (!dateStr) return null
-  const d = new Date(dateStr)
+  const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00')
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function membershipStatus(expiresAt) {
+  if (!expiresAt) return { type: 'none' }
+  const expiry = new Date(String(expiresAt).slice(0, 10) + 'T00:00:00')
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const daysLeft = Math.round((expiry - today) / (1000 * 60 * 60 * 24))
+  if (daysLeft < 0) return { type: 'expired' }
+  if (daysLeft > 30) return { type: 'paid', daysLeft, expiresAt }
+  return { type: 'trial', daysLeft, expiresAt }
 }
 
 // ตัวเลือกเวลา 06:00–22:00
@@ -54,6 +64,7 @@ export default function SettingsTab() {
   if (loading) return <div className="sub">กำลังโหลด...</div>
 
   const currentHour = me?.preferred_reminder_hour ?? 8
+  const membership = membershipStatus(me?.membership_expires_at)
 
   return (
     <>
@@ -100,18 +111,43 @@ export default function SettingsTab() {
               <CreditCard size={18} strokeWidth={1.8} color="var(--rhino-dim)" />
               <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--rhino)' }}>สมาชิกภาพ</span>
             </div>
-            <div style={{ fontSize: 13.5, color: 'var(--rhino-dim)', marginBottom: 12 }}>
-              {me.membership_expires_at
-                ? <>สมาชิกถึง: <strong style={{ color: 'var(--rhino)' }}>{fmtDate(me.membership_expires_at)}</strong></>
-                : 'ทดลองใช้ฟรี'}
-            </div>
+
+            {membership.type === 'expired' && (
+              <div style={{ fontSize: 13.5, color: '#dc2626', fontWeight: 600, marginBottom: 12 }}>
+                หมดอายุแล้ว
+              </div>
+            )}
+            {membership.type === 'trial' && (
+              <div style={{ fontSize: 13.5, color: 'var(--rhino-dim)', marginBottom: 12 }}>
+                ทดลองใช้ฟรี — เหลืออีก <strong style={{ color: 'var(--rhino)' }}>{membership.daysLeft} วัน</strong>
+                <div style={{ fontSize: 12, marginTop: 4 }}>
+                  (ถึง {fmtDate(membership.expiresAt)})
+                </div>
+              </div>
+            )}
+            {membership.type === 'paid' && (
+              <div style={{ fontSize: 13.5, color: 'var(--rhino-dim)', marginBottom: 12 }}>
+                สมาชิกแบบชำระเงิน — ใช้ได้ถึง{' '}
+                <strong style={{ color: 'var(--rhino)' }}>{fmtDate(membership.expiresAt)}</strong>
+              </div>
+            )}
+            {membership.type === 'none' && (
+              <div style={{ fontSize: 13.5, color: 'var(--rhino-dim)', marginBottom: 12 }}>
+                ทดลองใช้ฟรี
+              </div>
+            )}
+
             {renewMsg ? (
               <div style={{ fontSize: 13, color: 'var(--rhino-dim)', padding: '4px 0' }}>
-                ระบบชำระเงินกำลังจะเปิดให้ใช้เร็ว ๆ นี้
+                ระบบชำระเงินกำลังจะเปิดให้ใช้เร็ว ๆ นี้ — ติดต่อแอดมินผ่านแชท LINE เพื่อต่ออายุ
               </div>
             ) : (
-              <button className="primary" style={{ width: '100%' }} onClick={() => setRenewMsg(true)}>
-                ต่ออายุสมาชิก
+              <button
+                className="primary"
+                style={{ width: '100%', ...(membership.type === 'expired' ? { backgroundColor: '#dc2626' } : {}) }}
+                onClick={() => setRenewMsg(true)}
+              >
+                ต่ออายุสมาชิก 39 บาท/เดือน
               </button>
             )}
           </div>

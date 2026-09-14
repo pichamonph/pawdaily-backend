@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "scheduler": "node src/scheduler.js",
     "appointment-scheduler": "node src/appointment-scheduler.js",
-    "feedback-timeout": "node src/feedback-timeout.js"
+    "feedback-timeout": "node src/feedback-timeout.js",
+    "membership-reminder": "node src/membership-reminder.js"
   },
   "dependencies": {
     "@line/bot-sdk": "^9.4.2",
