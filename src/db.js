@@ -1,5 +1,10 @@
 // ตัวเชื่อมต่อฐานข้อมูล Supabase (PostgreSQL) ผ่าน Session pooler
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// Return DATE/TIMESTAMP columns as plain strings instead of Date objects.
+// Without this, String(dateObj).slice(0,10) gives "Tue Sep 15 ..." not "2026-09-15".
+types.setTypeParser(1082, (val) => val); // DATE
+types.setTypeParser(1114, (val) => val); // TIMESTAMP
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

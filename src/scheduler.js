@@ -4,10 +4,20 @@ require('dotenv').config();
 const { query, pool } = require('./db');
 const { client } = require('./line');
 
+function toDateStr(val) {
+  if (!val) return null;
+  if (val instanceof Date) return new Date(val.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return String(val).slice(0, 10);
+}
+
 function isDue(lastDoneAt, frequencyDays) {
   if (!lastDoneAt) return true;
-  const last = new Date(lastDoneAt);
-  const daysSince = Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24));
+  const lastStr = toDateStr(lastDoneAt);
+  const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysSince = Math.floor(
+    (new Date(todayStr + 'T00:00:00') - new Date(lastStr + 'T00:00:00')) / msPerDay
+  );
   return daysSince >= frequencyDays;
 }
 

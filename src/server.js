@@ -192,13 +192,14 @@ async function completeRoutine(routineId, lineUserId) {
   );
   const routine = result.rows[0];
   if (!routine) return null;
+  const todayThai = thaiToday();
   const alreadyDone = await query(
-    'SELECT 1 FROM routines WHERE id = $1 AND last_done_at = CURRENT_DATE',
-    [routine.id]
+    'SELECT 1 FROM routines WHERE id = $1 AND last_done_at::text = $2',
+    [routine.id, todayThai]
   );
   if (alreadyDone.rows.length === 0) {
     await query('INSERT INTO routine_logs (routine_id) VALUES ($1)', [routine.id]);
-    await query('UPDATE routines SET last_done_at = CURRENT_DATE WHERE id = $1', [routine.id]);
+    await query('UPDATE routines SET last_done_at = $1 WHERE id = $2', [todayThai, routine.id]);
   }
   return routine;
 }
@@ -258,23 +259,34 @@ app.delete('/api/routines/:id/complete', requireLiffAuth, async (req, res) => {
   );
   const routine = result.rows[0];
   if (!routine) return res.status(404).json({ error: 'routine not found' });
-  // Delete today's log entry
+  const todayThai = thaiToday();
+  // Delete today's log entry (compare using Thai date)
   await query(
-    `DELETE FROM routine_logs WHERE routine_id = $1 AND done_at::date = CURRENT_DATE`,
-    [routine.id]
+    `DELETE FROM routine_logs WHERE routine_id = $1
+     AND (done_at AT TIME ZONE 'Asia/Bangkok')::date::text = $2`,
+    [routine.id, todayThai]
   );
-  // Recalculate last_done_at from remaining logs
+  // Recalculate last_done_at from remaining logs (convert to Thai date)
   const prev = await query(
-    `SELECT done_at FROM routine_logs WHERE routine_id = $1 ORDER BY done_at DESC LIMIT 1`,
+    `SELECT (done_at AT TIME ZONE 'Asia/Bangkok')::date::text AS done_date
+     FROM routine_logs WHERE routine_id = $1 ORDER BY done_at DESC LIMIT 1`,
     [routine.id]
   );
-  const newLastDoneAt = prev.rows.length > 0 ? prev.rows[0].done_at : null;
+  const newLastDoneAt = prev.rows.length > 0 ? prev.rows[0].done_date : null;
   await query('UPDATE routines SET last_done_at = $1 WHERE id = $2', [newLastDoneAt, routine.id]);
   res.json({ ok: true });
 });
 
-// GET /api/today
+// GET /api/today[?date=YYYY-MM-DD]
+// Without date param: returns routines due or done today (for Today tab)
+// With date param: returns routines due on that date + medical appointments on that date
 app.get('/api/today', requireLiffAuth, async (req, res) => {
+  const todayStr = thaiToday();
+  const targetStr = (req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date))
+    ? req.query.date
+    : todayStr;
+  const isToday = targetStr === todayStr;
+
   const user = await findOrCreateUser(req.lineUserId, null);
   const result = await query(
     `SELECT routines.id, routines.title, routines.frequency_days, routines.last_done_at,
@@ -285,25 +297,59 @@ app.get('/api/today', requireLiffAuth, async (req, res) => {
      ORDER BY cats.id, routines.id`,
     [user.id]
   );
-  const nowThai = new Date(Date.now() + 7 * 60 * 60 * 1000);
-  const todayStr = nowThai.toISOString().slice(0, 10);
-  const dueOrDoneToday = result.rows
-    .filter(r => isDue(r.last_done_at, r.frequency_days) ||
-      (r.last_done_at && String(r.last_done_at).slice(0, 10) === todayStr))
+
+  const rows = result.rows.map(r => ({ ...r, last_done_at: toDateStr(r.last_done_at) }));
+
+  const dueItems = rows
+    .filter(r => isDue(r.last_done_at, r.frequency_days, targetStr) ||
+      (isToday && r.last_done_at === todayStr))
     .map(r => ({
       ...r,
-      done_today: r.last_done_at && String(r.last_done_at).slice(0, 10) === todayStr,
+      type: 'routine',
+      done_today: isToday && r.last_done_at === todayStr,
     }));
-  res.json(dueOrDoneToday);
+
+  if (isToday) {
+    res.json(dueItems);
+    return;
+  }
+
+  // For non-today dates: also include medical appointments on that date
+  const medResult = await query(
+    `SELECT me.id, me.name AS title, c.id AS cat_id, c.name AS cat_name
+     FROM medical_events me
+     JOIN cats c ON c.id = me.cat_id
+     WHERE c.owner_id = $1 AND me.next_due_date::text = $2`,
+    [user.id, targetStr]
+  );
+  const appointments = medResult.rows.map(r => ({
+    type: 'medical_event',
+    id: r.id,
+    title: r.title,
+    cat_id: r.cat_id,
+    cat_name: r.cat_name,
+  }));
+
+  res.json([...dueItems, ...appointments]);
 });
 
-function isDue(lastDoneAt, frequencyDays) {
+function thaiToday() {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function toDateStr(val) {
+  if (!val) return null;
+  if (val instanceof Date) return new Date(val.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return String(val).slice(0, 10);
+}
+
+function isDue(lastDoneAt, frequencyDays, asOfStr) {
   if (!lastDoneAt) return true;
-  const lastStr = String(lastDoneAt).slice(0, 10);
-  const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const lastStr = toDateStr(lastDoneAt);
+  const refStr = asOfStr || thaiToday();
   const msPerDay = 1000 * 60 * 60 * 24;
   const daysSince = Math.floor(
-    (new Date(todayStr + 'T00:00:00') - new Date(lastStr + 'T00:00:00')) / msPerDay
+    (new Date(refStr + 'T00:00:00') - new Date(lastStr + 'T00:00:00')) / msPerDay
   );
   return daysSince >= frequencyDays;
 }
@@ -513,17 +559,18 @@ app.get('/api/cats/:id/dashboard', requireLiffAuth, async (req, res) => {
   const cat = await assertOwnsCat(req.lineUserId, req.params.id);
   if (!cat) return res.status(404).json({ error: 'cat not found' });
   const catId = cat.id;
+  const todayThai = thaiToday();
 
   const [weightRes, apptRes, expenseRes, routineTotalRes, routineDoneRes] = await Promise.all([
     query('SELECT weight_kg, recorded_at FROM weight_logs WHERE cat_id=$1 ORDER BY recorded_at DESC LIMIT 2', [catId]),
     query(`SELECT name, next_due_date, type FROM medical_events
-           WHERE cat_id=$1 AND next_due_date >= CURRENT_DATE ORDER BY next_due_date ASC LIMIT 1`, [catId]),
+           WHERE cat_id=$1 AND next_due_date::text >= $2 ORDER BY next_due_date ASC LIMIT 1`, [catId, todayThai]),
     query(`SELECT COALESCE(SUM(amount),0) AS total FROM expenses
-           WHERE cat_id=$1 AND DATE_TRUNC('month', expense_date) = DATE_TRUNC('month', CURRENT_DATE)`, [catId]),
+           WHERE cat_id=$1 AND DATE_TRUNC('month', expense_date) = DATE_TRUNC('month', $2::date)`, [catId, todayThai]),
     query('SELECT COUNT(*)::int AS total FROM routines WHERE cat_id=$1 AND active=TRUE', [catId]),
     query(`SELECT COUNT(DISTINCT rl.routine_id)::int AS done FROM routine_logs rl
            JOIN routines r ON r.id = rl.routine_id
-           WHERE r.cat_id=$1 AND rl.done_at::date = CURRENT_DATE`, [catId]),
+           WHERE r.cat_id=$1 AND (rl.done_at AT TIME ZONE 'Asia/Bangkok')::date::text = $2`, [catId, todayThai]),
   ]);
 
   const weights = weightRes.rows;
@@ -580,7 +627,7 @@ app.get('/api/calendar', requireLiffAuth, async (req, res) => {
       [user.id, monthStart, monthEnd]
     );
     for (const row of medResult.rows) {
-      const dateStr = String(row.next_due_date).slice(0, 10);
+      const dateStr = toDateStr(row.next_due_date);
       addEvent(dateStr, { type: 'medical_event', pet_name: row.cat_name, title: row.name });
     }
 
@@ -598,8 +645,8 @@ app.get('/api/calendar', requireLiffAuth, async (req, res) => {
       if (!freq || freq <= 0) continue;
 
       // Start from last_done_at + freq_days, step by freq until past monthEnd
-      // Use local-date string arithmetic to avoid UTC bugs
-      let current = new Date(String(r.last_done_at).slice(0, 10) + 'T00:00:00');
+      const lastDoneStr = toDateStr(r.last_done_at);
+      let current = new Date(lastDoneStr + 'T00:00:00');
       current.setDate(current.getDate() + freq);
 
       // Safety cap: avoid infinite loop

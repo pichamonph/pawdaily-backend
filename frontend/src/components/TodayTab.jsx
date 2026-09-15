@@ -116,6 +116,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
   const [error, setError] = useState(null)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('sv'))
   const [calEvents, setCalEvents] = useState({})
+  const [dateItems, setDateItems] = useState([])
   const calMonth = useRef(null)
 
   const load = useCallback(async () => {
@@ -152,6 +153,18 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
       .catch(() => {})
   }, [selectedDate])
 
+  // Fetch routines + appointments for non-today selected date
+  useEffect(() => {
+    const todayStr = new Date().toLocaleDateString('sv')
+    if (selectedDate === todayStr) {
+      setDateItems([])
+      return
+    }
+    api(`/api/today?date=${selectedDate}`)
+      .then(setDateItems)
+      .catch(() => setDateItems([]))
+  }, [selectedDate])
+
   async function toggleDone(id) {
     const isDone = doneIds.has(id)
     setDoneIds(prev => {
@@ -186,8 +199,8 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })
   })()
 
-  // Calendar events for non-today selected date
-  const selectedCalEvents = (!isToday && calEvents[selectedDate]) ? calEvents[selectedDate] : []
+  // For non-today dates: use fetched routines+appointments from /api/today?date=
+  const selectedCalEvents = !isToday ? dateItems : []
 
   return (
     <>
