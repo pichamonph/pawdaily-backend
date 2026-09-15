@@ -1,30 +1,44 @@
 /* global liff */
 import { useState, useEffect } from 'react'
 import { Sun, PawPrint, Settings } from 'lucide-react'
+import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { setTokenGetter, api } from './api'
 import TodayTab from './components/TodayTab'
 import CatsTab from './components/CatsTab'
 import SettingsTab from './components/SettingsTab'
+import RoutinesPage from './pages/RoutinesPage'
+import WeightPage from './pages/WeightPage'
+import HealthPage from './pages/HealthPage'
+import ExpensesPage from './pages/ExpensesPage'
+import DiaryPage from './pages/DiaryPage'
+import PassportPage from './pages/PassportPage'
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID
 
 const TABS = [
-  { id: 'today',    Icon: Sun,      label: 'วันนี้' },
-  { id: 'cats',     Icon: PawPrint, label: 'แมวของฉัน' },
-  { id: 'settings', Icon: Settings, label: 'ตั้งค่า' },
+  { id: 'today',    Icon: Sun,      label: 'หน้าแรก', path: '/' },
+  { id: 'cats',     Icon: PawPrint, label: 'แมวของฉัน', path: '/cats' },
+  { id: 'settings', Icon: Settings, label: 'ตั้งค่า', path: '/settings' },
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('today')
+  return (
+    <HashRouter>
+      <AppContent />
+    </HashRouter>
+  )
+}
+
+function AppContent() {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
   const [selectedCatId, setSelectedCatId] = useState(null)
   const [doneIds, setDoneIds] = useState(new Set())
-  const [catActiveSection, setCatActiveSection] = useState(null)
+  const navigate = useNavigate()
+  const location = useLocation()
 
   function navigateToCat(section) {
-    setCatActiveSection(section)
-    setTab('cats')
+    if (selectedCatId) navigate(`/cats/${selectedCatId}/${section}`)
   }
 
   useEffect(() => {
@@ -40,14 +54,14 @@ export default function App() {
         try {
           const cats = await api('/api/cats')
           if (cats.length > 0) setSelectedCatId(cats[0].id)
-          setTab(cats.length === 0 ? 'cats' : 'today')
+          if (cats.length === 0) navigate('/cats')
         } catch {
           // fallback to default tab if check fails
         }
         setReady(true)
       })
       .catch((err) => setError(`LIFF init ล้มเหลว: ${err.message}`))
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const header = (
     <header className="app-header">
@@ -70,26 +84,57 @@ export default function App() {
     </>
   )
 
+  // Hide tabbar on passport page
+  const isPassportPage = /^\/cats\/\d+\/passport/.test(location.pathname)
+
   return (
     <>
       {header}
       <div className="wrap">
-        {tab === 'today'    && <TodayTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} doneIds={doneIds} setDoneIds={setDoneIds} onNavigateToCat={navigateToCat} />}
-        {tab === 'cats'     && <CatsTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} activeSection={catActiveSection} onSectionChange={setCatActiveSection} />}
-        {tab === 'settings' && <SettingsTab />}
+        <Routes>
+          <Route path="/" element={
+            <TodayTab
+              selectedCatId={selectedCatId}
+              onSelectCat={setSelectedCatId}
+              doneIds={doneIds}
+              setDoneIds={setDoneIds}
+              onNavigateToCat={navigateToCat}
+            />
+          } />
+          <Route path="/cats" element={
+            <CatsTab
+              selectedCatId={selectedCatId}
+              onSelectCat={setSelectedCatId}
+            />
+          } />
+          <Route path="/cats/:id/passport" element={<PassportPage />} />
+          <Route path="/cats/:id/routines" element={<RoutinesPage />} />
+          <Route path="/cats/:id/weight" element={<WeightPage />} />
+          <Route path="/cats/:id/health" element={<HealthPage />} />
+          <Route path="/cats/:id/expenses" element={<ExpensesPage />} />
+          <Route path="/cats/:id/diary" element={<DiaryPage />} />
+          <Route path="/settings" element={<SettingsTab />} />
+        </Routes>
       </div>
-      <div className="tabbar">
-        {TABS.map(({ id, Icon, label }) => (
-          <button
-            key={id}
-            className={tab === id ? 'active' : ''}
-            onClick={() => setTab(id)}
-          >
-            <Icon size={22} strokeWidth={tab === id ? 2.5 : 1.8} />
-            {label}
-          </button>
-        ))}
-      </div>
+      {!isPassportPage && (
+        <div className="tabbar">
+          {TABS.map(({ id, Icon, label, path }) => {
+            const isActive = path === '/'
+              ? location.pathname === '/'
+              : location.pathname.startsWith(path)
+            return (
+              <button
+                key={id}
+                className={isActive ? 'active' : ''}
+                onClick={() => navigate(path)}
+              >
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </>
   )
 }

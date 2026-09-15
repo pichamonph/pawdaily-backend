@@ -1,13 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, PawPrint, Scale, Calendar, Wallet, ListChecks, Camera, ImagePlus, Pencil, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Plus, PawPrint, Scale, Calendar, Wallet, ListChecks, Camera, ImagePlus, Pencil, TrendingUp, TrendingDown, Minus, BookOpen, Stethoscope } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
-import CatPassport from './CatPassport'
 import CatAvatarStrip from './CatAvatarStrip'
 
 const BREEDS = [
   'ไทย / วิเชียรมาศ', 'เปอร์เซีย', 'สก็อตติชโฟลด์', 'อเมริกันชอร์ตแฮร์',
   'เมนคูน', 'บริติชชอร์ตแฮร์', 'รัสเชียนบลู', 'สยาม', 'สายพันธุ์ผสม / ไม่ทราบ', 'อื่นๆ',
+]
+
+const MENU_ITEMS = [
+  { id: 'routines', Icon: ListChecks,  label: 'กิจวัตร',     color: '#2E4060' },
+  { id: 'weight',   Icon: Scale,       label: 'น้ำหนัก',     color: '#4A5D80' },
+  { id: 'health',   Icon: Stethoscope, label: 'สุขภาพ',      color: '#DD8C96' },
+  { id: 'expenses', Icon: Wallet,      label: 'ค่าใช้จ่าย',  color: '#E3982E' },
+  { id: 'diary',    Icon: BookOpen,    label: 'ไดอารี่',      color: '#65a30d' },
 ]
 
 function BreedSelect({ value, onChange }) {
@@ -134,32 +142,6 @@ function CatHeader({ cat, onCatUpdate, onPassport }) {
   )
 }
 
-// ===== Passport modal (read-only display) =====
-function PassportModal({ cat, onClose, onEdit }) {
-  const passportId = `PD-${String(cat.id).padStart(4, '0')}`
-  return (
-    <Modal title="" onClose={onClose}>
-      <div style={{ textAlign: 'center', paddingBottom: 8 }}>
-        {cat.photo_url
-          ? <img src={cat.photo_url} alt={cat.name} style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '4px solid var(--almond-dim)', marginBottom: 12 }} />
-          : <div style={{ width: 120, height: 120, borderRadius: '50%', background: 'var(--almond)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}><PawPrint size={40} color="var(--dull-pink)" strokeWidth={1.5} /></div>
-        }
-        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--rhino)', marginBottom: 4 }}>{cat.name}</div>
-        <div style={{ fontSize: 12, color: 'var(--rhino-dim)', marginBottom: 12 }}>{passportId}</div>
-        {(cat.breed || cat.birthday) && (
-          <div style={{ background: 'var(--almond)', borderRadius: 10, padding: '10px 16px', textAlign: 'left', fontSize: 13, lineHeight: 1.8 }}>
-            {cat.breed && <div><strong>สายพันธุ์:</strong> {cat.breed}</div>}
-            {cat.birthday && <div><strong>วันเกิด:</strong> {fmtDate(cat.birthday)}</div>}
-          </div>
-        )}
-        <button className="ghost" style={{ marginTop: 14, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={onEdit}>
-          <Pencil size={14} /> แก้ไขข้อมูล
-        </button>
-      </div>
-    </Modal>
-  )
-}
-
 // ===== Edit cat modal =====
 function EditCatModal({ cat, onDone, onClose }) {
   const [name, setName] = useState(cat.name)
@@ -243,13 +225,13 @@ function AddCatModal({ onDone, onClose }) {
 }
 
 // ===== Main CatsTab =====
-export default function CatsTab({ selectedCatId, onSelectCat, activeSection, onSectionChange }) {
+export default function CatsTab({ selectedCatId, onSelectCat }) {
   const [cats, setCats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [showPassport, setShowPassport] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const navigate = useNavigate()
 
   const loadCats = useCallback(async () => {
     setLoading(true)
@@ -279,16 +261,37 @@ export default function CatsTab({ selectedCatId, onSelectCat, activeSection, onS
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1 style={{ margin: 0 }}>แมวของฉัน</h1>
-        <button className="section-add-btn" onClick={() => setShowAdd(true)}>
-          <Plus size={14} /> เพิ่มแมว
-        </button>
+      {/* Avatar strip with + button */}
+      <div className="avatar-sel-strip">
+        {cats.map(cat => (
+          <div
+            key={cat.id}
+            className={`avatar-sel-item${cat.id === selectedCatId ? ' active' : ''}`}
+            onClick={() => onSelectCat(cat.id)}
+          >
+            <div className="avatar-sel-ring">
+              {cat.photo_url
+                ? <img src={cat.photo_url} alt={cat.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+                : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--almond)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <PawPrint size={20} color="var(--dull-pink)" strokeWidth={1.5} />
+                  </div>
+              }
+            </div>
+            <span>{cat.name}</span>
+          </div>
+        ))}
+        <div
+          className="avatar-sel-item"
+          onClick={() => setShowAdd(true)}
+        >
+          <div className="avatar-sel-ring">
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--almond-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: 'var(--rhino-dim)', fontWeight: 300 }}>
+              +
+            </div>
+          </div>
+          <span>เพิ่ม</span>
+        </div>
       </div>
-
-      {cats.length > 1 && (
-        <CatAvatarStrip cats={cats} selectedCatId={selectedCatId} onSelect={onSelectCat} />
-      )}
 
       {error && <div className="error-msg">{error}</div>}
 
@@ -296,7 +299,7 @@ export default function CatsTab({ selectedCatId, onSelectCat, activeSection, onS
         <div className="empty-state">
           <PawPrint size={56} strokeWidth={1.2} color="var(--dull-pink)" />
           <div className="empty-title">ยังไม่มีแมว</div>
-          <div className="empty-sub">กดปุ่มเพิ่มแมวเพื่อเริ่มต้น</div>
+          <div className="empty-sub">กดปุ่ม + เพื่อเพิ่มแมว</div>
         </div>
       )}
 
@@ -306,31 +309,26 @@ export default function CatsTab({ selectedCatId, onSelectCat, activeSection, onS
           <CatHeader
             cat={selectedCat}
             onCatUpdate={handleCatUpdate}
-            onPassport={() => setShowPassport(true)}
+            onPassport={() => navigate(`/cats/${selectedCat.id}/passport`)}
           />
 
           {/* Dashboard */}
           <CatDashboard catId={selectedCat.id} />
 
-          {/* Section panels via CatPassport (no header) */}
-          <CatPassport
-            key={selectedCat.id}
-            cat={selectedCat}
-            showHeader={false}
-            activeSection={activeSection}
-            onSectionChange={onSectionChange}
-            onCatUpdate={handleCatUpdate}
-          />
+          {/* Section menu grid */}
+          <div className="cat-menu-grid">
+            {MENU_ITEMS.map(({ id, Icon, label, color }) => (
+              <div
+                key={id}
+                className="cat-menu-item"
+                onClick={() => navigate(`/cats/${selectedCat.id}/${id}`)}
+              >
+                <Icon size={28} color={color} strokeWidth={1.8} />
+                <span className="cat-menu-item-label">{label}</span>
+              </div>
+            ))}
+          </div>
         </>
-      )}
-
-      {/* Passport modal */}
-      {showPassport && selectedCat && (
-        <PassportModal
-          cat={selectedCat}
-          onClose={() => setShowPassport(false)}
-          onEdit={() => { setShowPassport(false); setShowEdit(true) }}
-        />
       )}
 
       {/* Edit cat modal */}

@@ -3,6 +3,7 @@ import {
   Camera, Plus, ListChecks, Scale, Stethoscope, Wallet, ImagePlus,
   Calendar, Pencil, BookOpen, Laugh, Smile, Meh, Frown, ChevronLeft, Trash2,
 } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
 import WeightChart from './WeightChart'
@@ -118,7 +119,7 @@ function FrequencyInput({ value, onChange }) {
 }
 
 // ===== กิจวัตร panel =====
-function RoutinesPanel({ catId, version, onAdd }) {
+export function RoutinesPanel({ catId, version, onAdd }) {
   const [routines, setRoutines] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -180,7 +181,7 @@ function RoutinesPanel({ catId, version, onAdd }) {
 }
 
 // ===== น้ำหนัก panel =====
-function WeightPanel({ catId, version, onAdd }) {
+export function WeightPanel({ catId, version, onAdd }) {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -259,7 +260,7 @@ function WeightPanel({ catId, version, onAdd }) {
 const MEDICAL_LABEL = { vaccine: 'วัคซีน', medication: 'ยา', checkup: 'ตรวจ' }
 const MEDICAL_COLOR = { vaccine: '#4A5D80', medication: '#DD8C96', checkup: '#2E4060' }
 
-function HealthPanel({ catId, version, onAdd }) {
+export function HealthPanel({ catId, version, onAdd }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -345,7 +346,7 @@ const EXPENSE_COLORS = {
   'ของเล่น': '#9CA3AF', 'อื่นๆ': '#9CA3AF',
 }
 
-function ExpensesPanel({ catId, version, onAdd }) {
+export function ExpensesPanel({ catId, version, onAdd }) {
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -372,6 +373,13 @@ function ExpensesPanel({ catId, version, onAdd }) {
 
   const total = expenses.reduce((s, e) => s + parseFloat(e.amount), 0)
 
+  // Compute category totals for donut chart
+  const categoryTotals = {}
+  expenses.forEach(e => {
+    categoryTotals[e.category] = (categoryTotals[e.category] || 0) + parseFloat(e.amount)
+  })
+  const chartData = Object.entries(categoryTotals).map(([name, value]) => ({ name, value }))
+
   if (loading) return <div className="sub">กำลังโหลด...</div>
   if (error) return <div className="error-msg">{error}</div>
 
@@ -382,9 +390,23 @@ function ExpensesPanel({ catId, version, onAdd }) {
         <button className="section-add-btn" onClick={onAdd}><Plus size={12} /> เพิ่ม</button>
       </div>
       {expenses.length > 0 && (
-        <div className="expense-total">
-          รวม: <strong>{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</strong>
-        </div>
+        <>
+          <div className="expense-total">
+            รวม: <strong>{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</strong>
+          </div>
+          <div style={{ height: 180, marginBottom: 8 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={chartData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={2}>
+                  {chartData.map((entry, i) => (
+                    <Cell key={entry.name} fill={EXPENSE_COLORS[entry.name] || '#9CA3AF'} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `${parseFloat(value).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </>
       )}
       {expenses.length === 0
         ? <div className="empty">ยังไม่มีบันทึกค่าใช้จ่าย</div>
@@ -421,79 +443,10 @@ function ExpensesPanel({ catId, version, onAdd }) {
   )
 }
 
-// ===== Spiral Mood Calendar =====
-function SpiralMoodCalendar({ displayMonth, moodMap, todayStr, selectedDate, onDayClick }) {
-  const [year, mon] = displayMonth.split('-').map(Number)
-  const daysInMonth = new Date(year, mon, 0).getDate()
+const DAY_HEADERS_DIARY = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 
-  const W = 320, H = 260
-  const cx = W / 2, cy = H / 2 - 5
-  const baseR = 38, rStep = 2.7
-  const aStep = 28 * (Math.PI / 180)
-  const startAngle = -Math.PI / 2
-
-  const dots = Array.from({ length: daysInMonth }, (_, i) => {
-    const r = baseR + i * rStep
-    const angle = startAngle + i * aStep
-    return {
-      x: cx + r * Math.cos(angle),
-      y: cy + r * Math.sin(angle),
-      day: i + 1,
-      dateStr: `${displayMonth}-${String(i + 1).padStart(2, '0')}`,
-      angle,
-    }
-  })
-
-  const pathD = dots.map((d, i) => `${i ? 'L' : 'M'}${d.x.toFixed(1)},${d.y.toFixed(1)}`).join(' ')
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-      <path d={pathD} fill="none" stroke="#EFCFC7" strokeWidth={1.2} opacity={0.5} />
-      {dots.map(({ x, y, day, dateStr, angle }) => {
-        const entry = moodMap[dateStr]
-        const moodCfg = entry ? MOODS.find(m => m.id === entry.mood) : null
-        const isToday = dateStr === todayStr
-        const isSelected = dateStr === selectedDate
-        const dotR = entry ? 9 : 7
-        const MoodIcon = moodCfg?.Icon
-        const numX = x + (dotR + 6) * Math.cos(angle)
-        const numY = y + (dotR + 6) * Math.sin(angle)
-        return (
-          <g key={dateStr} onClick={() => onDayClick(dateStr, entry)} style={{ cursor: 'pointer' }}>
-            <circle cx={x} cy={y} r={dotR + 7} fill="transparent" />
-            <circle
-              cx={x} cy={y} r={dotR}
-              fill={entry ? MOOD_COLORS[entry.mood] : '#EDE9E7'}
-              stroke={isToday ? '#DD8C96' : isSelected ? '#2E4060' : 'none'}
-              strokeWidth={isToday || isSelected ? 2.5 : 0}
-            />
-            {MoodIcon ? (
-              <foreignObject x={x - 7} y={y - 7} width={14} height={14} style={{ pointerEvents: 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-                  <MoodIcon size={12} color="#fff" strokeWidth={2.2} />
-                </div>
-              </foreignObject>
-            ) : (
-              <text x={x} y={y} textAnchor="middle" dominantBaseline="middle"
-                fontSize={7} fill="#9CA3AF" fontFamily="Kanit,sans-serif">
-                {day}
-              </text>
-            )}
-            {entry && (
-              <text x={numX} y={numY} textAnchor="middle" dominantBaseline="middle"
-                fontSize={7} fill="var(--rhino-dim)" fontFamily="Kanit,sans-serif" fontWeight="600">
-                {day}
-              </text>
-            )}
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
-// ===== Diary panel (with spiral calendar) =====
-function DiaryPanel({ catId, version, onAdd }) {
+// ===== Diary panel (with grid mood calendar) =====
+export function DiaryPanel({ catId, version, onAdd }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -538,14 +491,12 @@ function DiaryPanel({ catId, version, onAdd }) {
     setDisplayMonth(d.toLocaleDateString('sv').slice(0, 7))
   }
 
-  // Mood summary for this month
-  const moodCounts = {}
-  MOODS.forEach(m => { moodCounts[m.id] = 0 })
-  Object.entries(moodMap).forEach(([dateStr, entry]) => {
-    if (dateStr.slice(0, 7) === displayMonth && entry.mood) {
-      moodCounts[entry.mood] = (moodCounts[entry.mood] || 0) + 1
-    }
-  })
+  // Build grid
+  const firstDay = new Date(year, mon - 1, 1).getDay()
+  const daysInMonth = new Date(year, mon, 0).getDate()
+  const cells = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
   // Entries for selected date or most recent
   const dateEntries = selectedDate
@@ -562,7 +513,7 @@ function DiaryPanel({ catId, version, onAdd }) {
         <button className="section-add-btn" onClick={() => onAdd(selectedDate || today())}><Plus size={12} /> เพิ่ม</button>
       </div>
 
-      {/* Spiral mood calendar */}
+      {/* Grid mood calendar */}
       <div style={{ marginBottom: 12 }}>
         <div className="cal-nav" style={{ marginBottom: 4 }}>
           <button onClick={prevMonth} style={{ background: 'none', border: 'none', padding: '2px 6px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
@@ -573,24 +524,35 @@ function DiaryPanel({ catId, version, onAdd }) {
             <ChevronLeft size={15} style={{ transform: 'rotate(180deg)' }} />
           </button>
         </div>
-        <SpiralMoodCalendar
-          displayMonth={displayMonth}
-          moodMap={moodMap}
-          todayStr={todayStr}
-          selectedDate={selectedDate}
-          onDayClick={(dateStr, entry) => {
-            setSelectedDate(selectedDate === dateStr ? null : dateStr)
-            if (!entry) onAdd(dateStr)
-          }}
-        />
-        {/* Mood summary */}
-        <div className="mood-summary">
-          {MOODS.map(m => moodCounts[m.id] > 0 && (
-            <span key={m.id}>
-              <m.Icon size={11} color={m.color} style={{ verticalAlign: 'middle', marginRight: 2 }} />
-              {m.label}: <strong>{moodCounts[m.id]}</strong>
-            </span>
+        <div className="cal-grid">
+          {DAY_HEADERS_DIARY.map(h => (
+            <div key={h} className="cal-day-header" style={{ fontSize: 10 }}>{h}</div>
           ))}
+          {cells.map((day, idx) => {
+            if (!day) return <div key={`e-${idx}`} />
+            const dateStr = `${displayMonth}-${String(day).padStart(2, '0')}`
+            const entry = moodMap[dateStr]
+            const moodCfg = entry ? MOODS.find(m => m.id === entry.mood) : null
+            const MoodIcon = moodCfg?.Icon
+            const isToday = dateStr === todayStr
+            const isSelected = dateStr === selectedDate
+            return (
+              <div
+                key={dateStr}
+                className={`cal-day${entry ? ' mood-day' : ''}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
+                style={{ background: entry ? MOOD_COLORS[entry.mood] : '#EDE9E7', cursor: 'pointer', minHeight: 32, padding: '2px 1px', borderRadius: 8 }}
+                onClick={() => {
+                  setSelectedDate(selectedDate === dateStr ? null : dateStr)
+                  if (!entry) onAdd(dateStr)
+                }}
+              >
+                {MoodIcon ? (
+                  <MoodIcon size={12} color="#fff" strokeWidth={2} />
+                ) : null}
+                <span className="cal-day-num" style={{ fontSize: 10, color: entry ? '#fff' : '#9CA3AF' }}>{day}</span>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -635,7 +597,7 @@ function DiaryPanel({ catId, version, onAdd }) {
 }
 
 // ===== Add Modals =====
-function AddRoutineModal({ catId, onDone, onClose }) {
+export function AddRoutineModal({ catId, onDone, onClose }) {
   const [title, setTitle] = useState('')
   const [freq, setFreq] = useState(1)
   const [lastDone, setLastDone] = useState('')
@@ -670,7 +632,7 @@ function AddRoutineModal({ catId, onDone, onClose }) {
   )
 }
 
-function AddWeightModal({ catId, onDone, onClose }) {
+export function AddWeightModal({ catId, onDone, onClose }) {
   const [weight, setWeight] = useState('')
   const [error, setError] = useState(null)
 
@@ -705,7 +667,7 @@ const MEDICAL_TYPES = [
   { value: 'checkup', label: 'ตรวจสุขภาพ' },
 ]
 
-function AddMedicalModal({ catId, onDone, onClose }) {
+export function AddMedicalModal({ catId, onDone, onClose }) {
   const [type, setType] = useState('vaccine')
   const [name, setName] = useState('')
   const [eventDate, setEventDate] = useState(today())
@@ -754,7 +716,7 @@ function AddMedicalModal({ catId, onDone, onClose }) {
 
 const EXPENSE_CATEGORIES = ['อาหาร', 'ทราย', 'หมอ', 'ยา', 'วัคซีน', 'ขนม', 'ของเล่น', 'อื่นๆ']
 
-function AddExpenseModal({ catId, onDone, onClose }) {
+export function AddExpenseModal({ catId, onDone, onClose }) {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('อาหาร')
   const [note, setNote] = useState('')
@@ -791,7 +753,7 @@ function AddExpenseModal({ catId, onDone, onClose }) {
   )
 }
 
-function AddDiaryModal({ catId, initialDate, onDone, onClose }) {
+export function AddDiaryModal({ catId, initialDate, onDone, onClose }) {
   const [mood, setMood] = useState('good')
   const [note, setNote] = useState('')
   const [photo, setPhoto] = useState(null)
@@ -858,9 +820,10 @@ function AddDiaryModal({ catId, initialDate, onDone, onClose }) {
 }
 
 // ===== Edit Modals =====
-function EditRoutineModal({ routine, onDone, onClose }) {
+export function EditRoutineModal({ routine, onDone, onClose }) {
   const [title, setTitle] = useState(routine.title)
   const [freq, setFreq] = useState(routine.frequency_days)
+  const [lastDone, setLastDone] = useState(routine.last_done_at ? String(routine.last_done_at).slice(0, 10) : '')
   const [error, setError] = useState(null)
 
   async function submit() {
@@ -868,7 +831,7 @@ function EditRoutineModal({ routine, onDone, onClose }) {
     try {
       await api(`/api/routines/${routine.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ title: title.trim(), frequency_days: freq }),
+        body: JSON.stringify({ title: title.trim(), frequency_days: freq, last_done_at: lastDone || undefined }),
       })
       onDone()
     } catch (e) { setError(e.message) }
@@ -881,12 +844,14 @@ function EditRoutineModal({ routine, onDone, onClose }) {
       <input value={title} onChange={e => setTitle(e.target.value)} autoFocus />
       <label className="form-label">ความถี่</label>
       <FrequencyInput value={freq} onChange={setFreq} />
+      <label className="form-label">ทำล่าสุดเมื่อ</label>
+      <input type="date" value={lastDone} onChange={e => setLastDone(e.target.value)} />
       <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
     </Modal>
   )
 }
 
-function EditWeightModal({ log, onDone, onClose }) {
+export function EditWeightModal({ log, onDone, onClose }) {
   const [weight, setWeight] = useState(String(parseFloat(log.weight_kg)))
   const [error, setError] = useState(null)
 
@@ -912,7 +877,7 @@ function EditWeightModal({ log, onDone, onClose }) {
   )
 }
 
-function EditMedicalModal({ event: ev, onDone, onClose }) {
+export function EditMedicalModal({ event: ev, onDone, onClose }) {
   const [type, setType] = useState(ev.type)
   const [name, setName] = useState(ev.name)
   const [eventDate, setEventDate] = useState(String(ev.event_date).slice(0, 10))
@@ -959,7 +924,7 @@ function EditMedicalModal({ event: ev, onDone, onClose }) {
   )
 }
 
-function EditExpenseModal({ expense, onDone, onClose }) {
+export function EditExpenseModal({ expense, onDone, onClose }) {
   const [amount, setAmount] = useState(String(parseFloat(expense.amount)))
   const [category, setCategory] = useState(expense.category)
   const [note, setNote] = useState(expense.note || '')
@@ -996,7 +961,7 @@ function EditExpenseModal({ expense, onDone, onClose }) {
   )
 }
 
-function EditDiaryModal({ entry, onDone, onClose }) {
+export function EditDiaryModal({ entry, onDone, onClose }) {
   const [mood, setMood] = useState(entry.mood)
   const [note, setNote] = useState(entry.note || '')
   const [error, setError] = useState(null)
@@ -1269,3 +1234,5 @@ export default function CatPassport({
     </div>
   )
 }
+
+export { MOODS, MOOD_COLORS, fmtDate, isDueSoon, formatFreq }

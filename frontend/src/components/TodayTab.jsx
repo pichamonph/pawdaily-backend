@@ -128,6 +128,11 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
       ])
       setItems(todayData)
       setCats(catsData)
+      // pre-populate doneIds from items already done today
+      const alreadyDone = new Set(todayData.filter(it => it.done_today).map(it => it.id))
+      if (alreadyDone.size > 0) {
+        setDoneIds(prev => new Set([...prev, ...alreadyDone]))
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -169,16 +174,20 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
 
   if (loading) return <div className="sub">กำลังโหลด...</div>
 
+  const todayStr = new Date().toLocaleDateString('sv')
+  const isToday = selectedDate === todayStr
   const filteredItems = selectedCatId
     ? items.filter(it => it.cat_id === selectedCatId)
     : items
 
   const selectedDateLabel = (() => {
-    const today = new Date().toLocaleDateString('sv')
-    if (selectedDate === today) return 'วันนี้'
+    if (isToday) return 'วันนี้'
     const d = new Date(selectedDate + 'T00:00:00')
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })
   })()
+
+  // Calendar events for non-today selected date
+  const selectedCalEvents = (!isToday && calEvents[selectedDate]) ? calEvents[selectedDate] : []
 
   return (
     <>
@@ -211,8 +220,32 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
         {selectedDateLabel}
       </div>
 
-      {/* Routine list */}
-      {!error && filteredItems.length === 0 && (
+      {/* Non-today: show calendar events for selected date */}
+      {!isToday && (
+        <>
+          {selectedCalEvents.length === 0 ? (
+            <div className="empty-state">
+              <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
+              <div className="empty-title">ไม่มีกิจกรรม</div>
+              <div className="empty-sub">ไม่มีรายการในวันนี้</div>
+            </div>
+          ) : (
+            <div className="card cal-events" style={{ padding: 0, paddingLeft: 16, paddingRight: 16 }}>
+              {selectedCalEvents.map((ev, i) => (
+                <div key={i} className="cal-event-row">
+                  <div
+                    style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: ev.type === 'medical_event' ? 'var(--dull-pink)' : 'var(--rhino-dim)' }}
+                  />
+                  <span style={{ fontSize: 13 }}>{ev.title || ev.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Today: show routine list */}
+      {isToday && !error && filteredItems.length === 0 && (
         <div className="empty-state">
           <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
           <div className="empty-title">เยี่ยมมาก!</div>
@@ -220,7 +253,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
         </div>
       )}
 
-      {filteredItems.length > 0 && (
+      {isToday && filteredItems.length > 0 && (
         <div className="card" style={{ padding: 0 }}>
           {filteredItems.map(it => {
             const done = doneIds.has(it.id)

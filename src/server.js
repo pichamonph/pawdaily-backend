@@ -285,8 +285,16 @@ app.get('/api/today', requireLiffAuth, async (req, res) => {
      ORDER BY cats.id, routines.id`,
     [user.id]
   );
-  const dueToday = result.rows.filter((r) => isDue(r.last_done_at, r.frequency_days));
-  res.json(dueToday);
+  const nowThai = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  const todayStr = nowThai.toISOString().slice(0, 10);
+  const dueOrDoneToday = result.rows
+    .filter(r => isDue(r.last_done_at, r.frequency_days) ||
+      (r.last_done_at && String(r.last_done_at).slice(0, 10) === todayStr))
+    .map(r => ({
+      ...r,
+      done_today: r.last_done_at && String(r.last_done_at).slice(0, 10) === todayStr,
+    }));
+  res.json(dueOrDoneToday);
 });
 
 function isDue(lastDoneAt, frequencyDays) {
@@ -403,8 +411,9 @@ app.get('/api/cats/:id/expenses', requireLiffAuth, async (req, res) => {
   let sql = 'SELECT * FROM expenses WHERE cat_id = $1';
   const params = [cat.id];
   if (req.query.month) {
-    sql += " AND to_char(expense_date, 'YYYY-MM') = $2";
-    params.push(req.query.month);
+    sql += " AND to_char(expense_date, 'YYYY-MM') = $2"; params.push(req.query.month);
+  } else if (req.query.from && req.query.to) {
+    sql += ' AND expense_date >= $2 AND expense_date <= $3'; params.push(req.query.from, req.query.to);
   }
   sql += ' ORDER BY expense_date DESC, id DESC';
   const result = await query(sql, params);
@@ -658,10 +667,12 @@ async function assertOwnsDiaryEntry(lineUserId, entryId) {
 app.put('/api/routines/:id', requireLiffAuth, async (req, res) => {
   const routine = await assertOwnsRoutine(req.lineUserId, req.params.id);
   if (!routine) return res.status(404).json({ error: 'routine not found' });
-  const { title, frequency_days } = req.body;
+  const { title, frequency_days, last_done_at } = req.body;
+  // Use last_done_at === null to explicitly clear it, undefined means don't update
+  const updatedLast = last_done_at !== undefined ? (last_done_at || null) : routine.last_done_at;
   const updated = await query(
-    'UPDATE routines SET title = COALESCE($1, title), frequency_days = COALESCE($2, frequency_days) WHERE id = $3 RETURNING *',
-    [title || null, frequency_days || null, routine.id]
+    'UPDATE routines SET title = COALESCE($1, title), frequency_days = COALESCE($2, frequency_days), last_done_at = $4 WHERE id = $3 RETURNING *',
+    [title || null, frequency_days || null, routine.id, updatedLast]
   );
   res.json(updated.rows[0]);
 });
