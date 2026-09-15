@@ -75,7 +75,6 @@ h1 {
 /* ===== Routine rows ===== */
 .routine-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 9px 0;
   border-bottom: 1px solid var(--almond-dim);
@@ -588,8 +587,33 @@ input[type="date"] { color-scheme: light; }
 .cat-menu-item-label { font-size: 13px; font-weight: 600; color: var(--rhino); }
 .cat-menu-back { display: flex; align-items: center; gap: 6px; color: var(--rhino-dim); font-size: 13px; padding: 4px 0 12px; cursor: pointer; border: none; background: none; font-family: Kanit, sans-serif; }
 
+/* ===== Circle check toggle ===== */
+button.circle-check {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-right: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dull-pink);
+  transition: transform 0.15s;
+}
+button.circle-check:hover { transform: scale(1.12); }
+.circle-check-empty {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--almond-dim);
+  background: #fff;
+  transition: border-color 0.15s;
+}
+button.circle-check:hover .circle-check-empty { border-color: var(--dull-pink); }
+
 /* ===== Strikethrough done item ===== */
-.routine-row.done-anim span { text-decoration: line-through; color: var(--rhino-dim); opacity: 0.7; }
+.routine-row.done-anim > span { text-decoration: line-through; color: var(--rhino-dim); opacity: 0.7; }
 
 /* ===== Diary mood calendar ===== */
 .mood-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }

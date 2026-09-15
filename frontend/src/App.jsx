@@ -19,6 +19,7 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
   const [selectedCatId, setSelectedCatId] = useState(null)
+  const [doneIds, setDoneIds] = useState(new Set())
 
   useEffect(() => {
     if (!LIFF_ID) {
@@ -67,7 +68,7 @@ export default function App() {
     <>
       {header}
       <div className="wrap">
-        {tab === 'today'    && <TodayTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} />}
+        {tab === 'today'    && <TodayTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} doneIds={doneIds} setDoneIds={setDoneIds} />}
         {tab === 'cats'     && <CatsTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} />}
         {tab === 'settings' && <SettingsTab />}
       </div>

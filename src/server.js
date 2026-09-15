@@ -247,6 +247,32 @@ app.post('/api/routines/:id/complete', requireLiffAuth, async (req, res) => {
   res.json(updated.rows[0]);
 });
 
+// DELETE /api/routines/:id/complete  — undo today's completion
+app.delete('/api/routines/:id/complete', requireLiffAuth, async (req, res) => {
+  const result = await query(
+    `SELECT routines.* FROM routines
+     JOIN cats ON cats.id = routines.cat_id
+     JOIN users ON users.id = cats.owner_id
+     WHERE routines.id = $1 AND users.line_user_id = $2`,
+    [req.params.id, req.lineUserId]
+  );
+  const routine = result.rows[0];
+  if (!routine) return res.status(404).json({ error: 'routine not found' });
+  // Delete today's log entry
+  await query(
+    `DELETE FROM routine_logs WHERE routine_id = $1 AND done_at::date = CURRENT_DATE`,
+    [routine.id]
+  );
+  // Recalculate last_done_at from remaining logs
+  const prev = await query(
+    `SELECT done_at FROM routine_logs WHERE routine_id = $1 ORDER BY done_at DESC LIMIT 1`,
+    [routine.id]
+  );
+  const newLastDoneAt = prev.rows.length > 0 ? prev.rows[0].done_at : null;
+  await query('UPDATE routines SET last_done_at = $1 WHERE id = $2', [newLastDoneAt, routine.id]);
+  res.json({ ok: true });
+});
+
 // GET /api/today
 app.get('/api/today', requireLiffAuth, async (req, res) => {
   const user = await findOrCreateUser(req.lineUserId, null);

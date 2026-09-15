@@ -101,12 +101,11 @@ function MiniCalendar({ selectedDate, onSelectDate, calEvents }) {
   )
 }
 
-export default function TodayTab({ selectedCatId, onSelectCat }) {
+export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneIds }) {
   const [items, setItems] = useState([])
   const [cats, setCats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [doneIds, setDoneIds] = useState(new Set())
   const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('sv'))
   const [calEvents, setCalEvents] = useState({})
   const calMonth = useRef(null)
@@ -140,12 +139,23 @@ export default function TodayTab({ selectedCatId, onSelectCat }) {
       .catch(() => {})
   }, [selectedDate])
 
-  async function markDone(id) {
-    setDoneIds(prev => new Set([...prev, id]))
+  async function toggleDone(id) {
+    const isDone = doneIds.has(id)
+    setDoneIds(prev => {
+      const next = new Set(prev)
+      isDone ? next.delete(id) : next.add(id)
+      return next
+    })
     try {
-      await api(`/api/routines/${id}/complete`, { method: 'POST' })
+      await api(`/api/routines/${id}/complete`, { method: isDone ? 'DELETE' : 'POST' })
     } catch (err) {
       setError(err.message)
+      // revert on error
+      setDoneIds(prev => {
+        const next = new Set(prev)
+        isDone ? next.add(id) : next.delete(id)
+        return next
+      })
     }
   }
 
@@ -212,16 +222,18 @@ export default function TodayTab({ selectedCatId, onSelectCat }) {
                 className={`routine-row${done ? ' done-anim' : ''}`}
                 style={{ padding: '10px 16px' }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+                <button
+                  className={`circle-check${done ? ' checked' : ''}`}
+                  onClick={() => toggleDone(it.id)}
+                  aria-label={done ? 'ยกเลิก' : 'ทำแล้ว'}
+                >
+                  {done && <CheckCircle2 size={22} strokeWidth={2} />}
+                  {!done && <span className="circle-check-empty" />}
+                </button>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap', flex: 1 }}>
                   {isOverdue(it) && <span className="overdue-badge">เลยกำหนด</span>}
                   <span style={{ fontSize: 14 }}>{it.title}</span>
                 </span>
-                {!done && (
-                  <button className="done" onClick={() => markDone(it.id)}>ทำแล้ว</button>
-                )}
-                {done && (
-                  <span style={{ fontSize: 12, color: 'var(--rhino-dim)' }}>✓ เสร็จแล้ว</span>
-                )}
               </div>
             )
           })}
