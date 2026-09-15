@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { CheckCircle2, ChevronLeft, ChevronRight, ListChecks, Scale, Stethoscope, Wallet, BookOpen } from 'lucide-react'
 import { api } from '../api'
-import CatAvatarStrip from './CatAvatarStrip'
+import CatSwitcher from './CatSwitcher'
 
 const CAT_MENU_ITEMS = [
   { id: 'routines', Icon: ListChecks,  label: 'กิจวัตร',     color: '#2E4060' },
@@ -214,9 +214,9 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
         </div>
       </div>
 
-      {/* Avatar strip after greeting */}
-      {cats.length > 1 && (
-        <CatAvatarStrip cats={cats} selectedCatId={selectedCatId} onSelect={onSelectCat} />
+      {/* Cat switcher */}
+      {cats.length > 0 && (
+        <CatSwitcher cats={cats} selectedCatId={selectedCatId} onSelect={onSelectCat} />
       )}
 
       {error && <div className="error-msg">โหลดไม่ได้: {error}</div>}

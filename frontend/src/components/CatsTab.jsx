@@ -3,7 +3,7 @@ import { Plus, PawPrint, Scale, Calendar, Wallet, ListChecks, Camera, ImagePlus,
 import { useNavigate } from 'react-router-dom'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
-import CatAvatarStrip from './CatAvatarStrip'
+import CatSwitcher from './CatSwitcher'
 
 const BREEDS = [
   'ไทย / วิเชียรมาศ', 'เปอร์เซีย', 'สก็อตติชโฟลด์', 'อเมริกันชอร์ตแฮร์',
@@ -261,37 +261,16 @@ export default function CatsTab({ selectedCatId, onSelectCat }) {
 
   return (
     <>
-      {/* Avatar strip with + button */}
-      <div className="avatar-sel-strip">
-        {cats.map(cat => (
-          <div
-            key={cat.id}
-            className={`avatar-sel-item${cat.id === selectedCatId ? ' active' : ''}`}
-            onClick={() => onSelectCat(cat.id)}
-          >
-            <div className="avatar-sel-ring">
-              {cat.photo_url
-                ? <img src={cat.photo_url} alt={cat.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
-                : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--almond)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <PawPrint size={20} color="var(--dull-pink)" strokeWidth={1.5} />
-                  </div>
-              }
-            </div>
-            <span>{cat.name}</span>
-          </div>
-        ))}
-        <div
-          className="avatar-sel-item"
-          onClick={() => setShowAdd(true)}
-        >
-          <div className="avatar-sel-ring">
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--almond-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: 'var(--rhino-dim)', fontWeight: 300 }}>
-              +
-            </div>
-          </div>
-          <span>เพิ่ม</span>
-        </div>
-      </div>
+      {/* Cat switcher (shows even when 0 cats so user can still tap to add) */}
+      {cats.length > 0 && (
+        <CatSwitcher
+          cats={cats}
+          selectedCatId={selectedCatId}
+          onSelect={onSelectCat}
+          showAdd
+          onAdd={() => setShowAdd(true)}
+        />
+      )}
 
       {error && <div className="error-msg">{error}</div>}
 
@@ -299,7 +278,9 @@ export default function CatsTab({ selectedCatId, onSelectCat }) {
         <div className="empty-state">
           <PawPrint size={56} strokeWidth={1.2} color="var(--dull-pink)" />
           <div className="empty-title">ยังไม่มีแมว</div>
-          <div className="empty-sub">กดปุ่ม + เพื่อเพิ่มแมว</div>
+          <button className="primary" style={{ marginTop: 12 }} onClick={() => setShowAdd(true)}>
+            <Plus size={16} style={{ marginRight: 6 }} />เพิ่มแมวตัวแรก
+          </button>
         </div>
       )}
 
