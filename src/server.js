@@ -265,8 +265,12 @@ app.get('/api/today', requireLiffAuth, async (req, res) => {
 
 function isDue(lastDoneAt, frequencyDays) {
   if (!lastDoneAt) return true;
-  const last = new Date(lastDoneAt);
-  const daysSince = Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24));
+  const lastStr = String(lastDoneAt).slice(0, 10);
+  const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysSince = Math.floor(
+    (new Date(todayStr + 'T00:00:00') - new Date(lastStr + 'T00:00:00')) / msPerDay
+  );
   return daysSince >= frequencyDays;
 }
 
