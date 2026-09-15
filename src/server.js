@@ -499,6 +499,42 @@ app.get('/api/cats/:id/diary', requireLiffAuth, async (req, res) => {
   res.json(result.rows);
 });
 
+// GET /api/cats/:id/dashboard
+app.get('/api/cats/:id/dashboard', requireLiffAuth, async (req, res) => {
+  const cat = await assertOwnsCat(req.lineUserId, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'cat not found' });
+  const catId = cat.id;
+
+  const [weightRes, apptRes, expenseRes, routineTotalRes, routineDoneRes] = await Promise.all([
+    query('SELECT weight_kg, recorded_at FROM weight_logs WHERE cat_id=$1 ORDER BY recorded_at DESC LIMIT 2', [catId]),
+    query(`SELECT name, next_due_date, type FROM medical_events
+           WHERE cat_id=$1 AND next_due_date >= CURRENT_DATE ORDER BY next_due_date ASC LIMIT 1`, [catId]),
+    query(`SELECT COALESCE(SUM(amount),0) AS total FROM expenses
+           WHERE cat_id=$1 AND DATE_TRUNC('month', expense_date) = DATE_TRUNC('month', CURRENT_DATE)`, [catId]),
+    query('SELECT COUNT(*)::int AS total FROM routines WHERE cat_id=$1 AND active=TRUE', [catId]),
+    query(`SELECT COUNT(DISTINCT rl.routine_id)::int AS done FROM routine_logs rl
+           JOIN routines r ON r.id = rl.routine_id
+           WHERE r.cat_id=$1 AND rl.done_at::date = CURRENT_DATE`, [catId]),
+  ]);
+
+  const weights = weightRes.rows;
+  const latestWeight = weights[0] ? {
+    weight_kg: parseFloat(weights[0].weight_kg),
+    recorded_at: weights[0].recorded_at,
+    trend: weights[1]
+      ? (parseFloat(weights[0].weight_kg) > parseFloat(weights[1].weight_kg) ? 'up'
+        : parseFloat(weights[0].weight_kg) < parseFloat(weights[1].weight_kg) ? 'down' : 'same')
+      : null,
+  } : null;
+
+  res.json({
+    latestWeight,
+    nextAppointment: apptRes.rows[0] || null,
+    monthExpenseTotal: parseFloat(expenseRes.rows[0].total),
+    routines: { total: routineTotalRes.rows[0].total, doneToday: routineDoneRes.rows[0].done },
+  });
+});
+
 // GET /api/calendar?month=YYYY-MM
 app.get('/api/calendar', requireLiffAuth, async (req, res) => {
   try {

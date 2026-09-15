@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ChevronRight, ListChecks, Scale, Stethoscope, Wallet, BookOpen } from 'lucide-react'
 import { api } from '../api'
 import CatAvatarStrip from './CatAvatarStrip'
+
+const CAT_MENU_ITEMS = [
+  { id: 'routines', Icon: ListChecks,  label: 'กิจวัตร',     color: '#2E4060' },
+  { id: 'weight',   Icon: Scale,       label: 'น้ำหนัก',     color: '#4A5D80' },
+  { id: 'health',   Icon: Stethoscope, label: 'สุขภาพ',      color: '#DD8C96' },
+  { id: 'expenses', Icon: Wallet,      label: 'ค่าใช้จ่าย',  color: '#E3982E' },
+  { id: 'diary',    Icon: BookOpen,    label: 'ไดอารี่',      color: '#65a30d' },
+]
 
 function greeting() {
   const h = new Date().getHours()
@@ -101,7 +109,7 @@ function MiniCalendar({ selectedDate, onSelectDate, calEvents }) {
   )
 }
 
-export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneIds }) {
+export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneIds, onNavigateToCat }) {
   const [items, setItems] = useState([])
   const [cats, setCats] = useState([])
   const [loading, setLoading] = useState(true)
@@ -174,12 +182,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
 
   return (
     <>
-      {/* Avatar strip (only when > 1 cat) */}
-      {cats.length > 1 && (
-        <CatAvatarStrip cats={cats} selectedCatId={selectedCatId} onSelect={onSelectCat} />
-      )}
-
-      {/* Greeting card */}
+      {/* Greeting card first */}
       <div className="greeting-card">
         <div className="greeting-text">{greeting()}</div>
         <div className="greeting-sub">
@@ -188,6 +191,11 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
             : 'วันนี้ดูแลครบแล้ว!'}
         </div>
       </div>
+
+      {/* Avatar strip after greeting */}
+      {cats.length > 1 && (
+        <CatAvatarStrip cats={cats} selectedCatId={selectedCatId} onSelect={onSelectCat} />
+      )}
 
       {error && <div className="error-msg">โหลดไม่ได้: {error}</div>}
 
@@ -237,6 +245,23 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Quick access cat menu grid */}
+      {selectedCatId && onNavigateToCat && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--rhino-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            จัดการแมว
+          </div>
+          <div className="cat-menu-grid">
+            {CAT_MENU_ITEMS.map(({ id, Icon, label, color }) => (
+              <div key={id} className="cat-menu-item" onClick={() => onNavigateToCat(id)}>
+                <Icon size={24} color={color} strokeWidth={1.8} />
+                <span className="cat-menu-item-label">{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </>

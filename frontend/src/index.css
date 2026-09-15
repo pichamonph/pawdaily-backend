@@ -11,7 +11,7 @@
 
 body {
   margin: 0;
-  background: #FFF9F8;
+  background: #ffffff;
   color: var(--rhino);
   font-family: 'Kanit', -apple-system, sans-serif;
   padding-bottom: 72px;
@@ -628,3 +628,27 @@ button.circle-check:hover .circle-check-empty { border-color: var(--dull-pink); 
 .icon-btn { background: none; border: none; padding: 4px; border-radius: 6px; color: var(--rhino-dim); cursor: pointer; display: flex; align-items: center; }
 .icon-btn:hover { color: var(--rhino); background: var(--almond-dim); }
 .icon-btn.del:hover { color: #dc2626; background: #fee2e2; }
+
+/* ===== Dashboard =====  */
+.dashboard-card { background: #fff; border: 1px solid var(--almond-dim); border-radius: 12px; padding: 14px 10px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(46,64,96,0.07); }
+.dashboard-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; }
+.dash-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 2px; }
+.dash-value { font-size: 13px; font-weight: 700; color: var(--rhino); line-height: 1.2; text-align: center; }
+.dash-label { font-size: 10px; color: var(--rhino-dim); text-align: center; }
+
+/* ===== Cat header row ===== */
+.cat-header-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; margin-bottom: 4px; }
+.cat-header-photo-wrap { position: relative; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; flex-shrink: 0; cursor: pointer; }
+.cat-header-photo { width: 100%; height: 100%; object-fit: cover; }
+.cat-header-photo-placeholder { width: 100%; height: 100%; background: var(--almond); display: flex; align-items: center; justify-content: center; }
+.cat-header-camera { position: absolute; bottom: 0; right: 0; background: var(--dull-pink); border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; color: #fff; }
+
+/* ===== Passport link button ===== */
+.passport-link-btn { background: none; border: 1px solid var(--almond-dim); border-radius: 8px; padding: 5px 10px; font-size: 12px; color: var(--rhino-dim); cursor: pointer; white-space: nowrap; }
+.passport-link-btn:hover { border-color: var(--dull-pink); color: var(--dull-pink); }
+
+/* ===== no-header passport card ===== */
+.passport-card.no-header { background: none; box-shadow: none; border: none; }
+
+/* ===== FrequencyInput ===== */
+.freq-input-row { display: flex; gap: 8px; align-items: center; }

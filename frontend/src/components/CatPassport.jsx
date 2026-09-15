@@ -73,6 +73,50 @@ const MOODS = [
 
 const MOOD_COLORS = { great: '#16a34a', good: '#65a30d', okay: '#d97706', bad: '#dc2626' }
 
+// ===== Frequency helpers =====
+function formatFreq(days) {
+  if (days === 1) return 'ทุกวัน'
+  if (days % 30 === 0) return days === 30 ? 'ทุกเดือน' : `ทุก ${days / 30} เดือน`
+  if (days % 7 === 0) return days === 7 ? 'ทุกสัปดาห์' : `ทุก ${days / 7} สัปดาห์`
+  return `ทุก ${days} วัน`
+}
+
+function FrequencyInput({ value, onChange }) {
+  const toUnit = (d) => d % 30 === 0 && d >= 30 ? 'month' : d % 7 === 0 && d >= 7 ? 'week' : 'day'
+  const toNum = (d, u) => u === 'month' ? d / 30 : u === 'week' ? d / 7 : d
+  const [unit, setUnit] = useState(() => toUnit(value || 1))
+  const [num, setNum] = useState(() => toNum(value || 1, toUnit(value || 1)))
+
+  const toDays = (n, u) => Math.max(1, u === 'month' ? n * 30 : u === 'week' ? n * 7 : n)
+
+  function changeNum(e) {
+    const n = Math.max(1, parseInt(e.target.value) || 1)
+    setNum(n)
+    onChange(toDays(n, unit))
+  }
+  function changeUnit(e) {
+    const u = e.target.value
+    setUnit(u)
+    onChange(toDays(num, u))
+  }
+
+  const preview = `ทุก ${num === 1 && unit === 'day' ? '' : num + ' '}${unit === 'day' ? 'วัน' : unit === 'week' ? 'สัปดาห์' : 'เดือน'}`
+
+  return (
+    <div>
+      <div className="freq-input-row">
+        <input type="number" value={num} onChange={changeNum} min={1} style={{ width: 64 }} />
+        <select value={unit} onChange={changeUnit} style={{ flex: 1 }}>
+          <option value="day">วัน</option>
+          <option value="week">สัปดาห์</option>
+          <option value="month">เดือน</option>
+        </select>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--rhino-dim)', marginTop: 4 }}>{preview}</div>
+    </div>
+  )
+}
+
 // ===== กิจวัตร panel =====
 function RoutinesPanel({ catId, version, onAdd }) {
   const [routines, setRoutines] = useState([])
@@ -114,7 +158,7 @@ function RoutinesPanel({ catId, version, onAdd }) {
             <span style={{ fontSize: 14 }}>{r.title}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: 'var(--rhino-dim)', whiteSpace: 'nowrap' }}>
-                ทุก {r.frequency_days} วัน
+                {formatFreq(r.frequency_days)}
               </span>
               <div className="row-actions">
                 <button className="icon-btn" onClick={() => setEditing(r)}><Pencil size={13} /></button>
@@ -377,9 +421,78 @@ function ExpensesPanel({ catId, version, onAdd }) {
   )
 }
 
-// ===== Diary panel (with mood calendar) =====
-const DAY_HEADERS_DIARY = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+// ===== Spiral Mood Calendar =====
+function SpiralMoodCalendar({ displayMonth, moodMap, todayStr, selectedDate, onDayClick }) {
+  const [year, mon] = displayMonth.split('-').map(Number)
+  const daysInMonth = new Date(year, mon, 0).getDate()
 
+  const W = 320, H = 260
+  const cx = W / 2, cy = H / 2 - 5
+  const baseR = 38, rStep = 2.7
+  const aStep = 28 * (Math.PI / 180)
+  const startAngle = -Math.PI / 2
+
+  const dots = Array.from({ length: daysInMonth }, (_, i) => {
+    const r = baseR + i * rStep
+    const angle = startAngle + i * aStep
+    return {
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+      day: i + 1,
+      dateStr: `${displayMonth}-${String(i + 1).padStart(2, '0')}`,
+      angle,
+    }
+  })
+
+  const pathD = dots.map((d, i) => `${i ? 'L' : 'M'}${d.x.toFixed(1)},${d.y.toFixed(1)}`).join(' ')
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      <path d={pathD} fill="none" stroke="#EFCFC7" strokeWidth={1.2} opacity={0.5} />
+      {dots.map(({ x, y, day, dateStr, angle }) => {
+        const entry = moodMap[dateStr]
+        const moodCfg = entry ? MOODS.find(m => m.id === entry.mood) : null
+        const isToday = dateStr === todayStr
+        const isSelected = dateStr === selectedDate
+        const dotR = entry ? 9 : 7
+        const MoodIcon = moodCfg?.Icon
+        const numX = x + (dotR + 6) * Math.cos(angle)
+        const numY = y + (dotR + 6) * Math.sin(angle)
+        return (
+          <g key={dateStr} onClick={() => onDayClick(dateStr, entry)} style={{ cursor: 'pointer' }}>
+            <circle cx={x} cy={y} r={dotR + 7} fill="transparent" />
+            <circle
+              cx={x} cy={y} r={dotR}
+              fill={entry ? MOOD_COLORS[entry.mood] : '#EDE9E7'}
+              stroke={isToday ? '#DD8C96' : isSelected ? '#2E4060' : 'none'}
+              strokeWidth={isToday || isSelected ? 2.5 : 0}
+            />
+            {MoodIcon ? (
+              <foreignObject x={x - 7} y={y - 7} width={14} height={14} style={{ pointerEvents: 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                  <MoodIcon size={12} color="#fff" strokeWidth={2.2} />
+                </div>
+              </foreignObject>
+            ) : (
+              <text x={x} y={y} textAnchor="middle" dominantBaseline="middle"
+                fontSize={7} fill="#9CA3AF" fontFamily="Kanit,sans-serif">
+                {day}
+              </text>
+            )}
+            {entry && (
+              <text x={numX} y={numY} textAnchor="middle" dominantBaseline="middle"
+                fontSize={7} fill="var(--rhino-dim)" fontFamily="Kanit,sans-serif" fontWeight="600">
+                {day}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+// ===== Diary panel (with spiral calendar) =====
 function DiaryPanel({ catId, version, onAdd }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -406,7 +519,6 @@ function DiaryPanel({ catId, version, onAdd }) {
     } catch (e) { setError(e.message) }
   }
 
-  // Build mood map from entries
   const moodMap = {}
   entries.forEach(e => {
     const d = String(e.entry_date).slice(0, 10)
@@ -415,12 +527,6 @@ function DiaryPanel({ catId, version, onAdd }) {
 
   const [year, mon] = displayMonth.split('-').map(Number)
   const todayStr = new Date().toLocaleDateString('sv')
-  const firstDay = new Date(year, mon - 1, 1).getDay()
-  const daysInMonth = new Date(year, mon, 0).getDate()
-  const cells = []
-  for (let i = 0; i < firstDay; i++) cells.push(null)
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-
   const monthLabel = new Date(year, mon - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
 
   function prevMonth() {
@@ -456,47 +562,27 @@ function DiaryPanel({ catId, version, onAdd }) {
         <button className="section-add-btn" onClick={() => onAdd(selectedDate || today())}><Plus size={12} /> เพิ่ม</button>
       </div>
 
-      {/* Mood calendar */}
+      {/* Spiral mood calendar */}
       <div style={{ marginBottom: 12 }}>
-        <div className="cal-nav" style={{ marginBottom: 6 }}>
-          <button onClick={prevMonth} style={{ background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
+        <div className="cal-nav" style={{ marginBottom: 4 }}>
+          <button onClick={prevMonth} style={{ background: 'none', border: 'none', padding: '2px 6px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
             <ChevronLeft size={15} />
           </button>
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--rhino)' }}>{monthLabel}</span>
-          <button onClick={nextMonth} style={{ background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
+          <button onClick={nextMonth} style={{ background: 'none', border: 'none', padding: '2px 6px', cursor: 'pointer', color: 'var(--rhino-dim)', display: 'flex', alignItems: 'center' }}>
             <ChevronLeft size={15} style={{ transform: 'rotate(180deg)' }} />
           </button>
         </div>
-        <div className="mood-cal-grid">
-          {DAY_HEADERS_DIARY.map(h => (
-            <div key={h} style={{ textAlign: 'center', fontSize: 10, color: 'var(--rhino-dim)', paddingBottom: 4 }}>{h}</div>
-          ))}
-          {cells.map((day, idx) => {
-            if (!day) return <div key={`e-${idx}`} />
-            const dateStr = `${displayMonth}-${String(day).padStart(2, '0')}`
-            const entry = moodMap[dateStr]
-            const isToday = dateStr === todayStr
-            const isSelected = dateStr === selectedDate
-            return (
-              <div
-                key={dateStr}
-                className={`mood-cal-day${entry ? ' has-mood' : ''}${isToday ? ' today-ring' : ''}`}
-                style={{
-                  background: entry ? MOOD_COLORS[entry.mood] : undefined,
-                  outline: isSelected ? '2px solid var(--dull-pink)' : undefined,
-                  outlineOffset: isSelected ? 1 : undefined,
-                }}
-                onClick={() => {
-                  setSelectedDate(isSelected ? null : dateStr)
-                  if (!entry) onAdd(dateStr)
-                }}
-              >
-                {day}
-              </div>
-            )
-          })}
-        </div>
-
+        <SpiralMoodCalendar
+          displayMonth={displayMonth}
+          moodMap={moodMap}
+          todayStr={todayStr}
+          selectedDate={selectedDate}
+          onDayClick={(dateStr, entry) => {
+            setSelectedDate(selectedDate === dateStr ? null : dateStr)
+            if (!entry) onAdd(dateStr)
+          }}
+        />
         {/* Mood summary */}
         <div className="mood-summary">
           {MOODS.map(m => moodCounts[m.id] > 0 && (
@@ -551,7 +637,7 @@ function DiaryPanel({ catId, version, onAdd }) {
 // ===== Add Modals =====
 function AddRoutineModal({ catId, onDone, onClose }) {
   const [title, setTitle] = useState('')
-  const [freq, setFreq] = useState('1')
+  const [freq, setFreq] = useState(1)
   const [lastDone, setLastDone] = useState('')
   const [error, setError] = useState(null)
 
@@ -562,7 +648,7 @@ function AddRoutineModal({ catId, onDone, onClose }) {
         method: 'POST',
         body: JSON.stringify({
           title: title.trim(),
-          frequency_days: parseInt(freq, 10),
+          frequency_days: freq,
           last_done_at: lastDone || undefined,
         }),
       })
@@ -576,11 +662,7 @@ function AddRoutineModal({ catId, onDone, onClose }) {
       <label className="form-label">ชื่อกิจวัตร</label>
       <input value={title} onChange={e => setTitle(e.target.value)} placeholder="เช่น เช็ดตา, ล้างกระบะ" autoFocus />
       <label className="form-label">ความถี่</label>
-      <select value={freq} onChange={e => setFreq(e.target.value)}>
-        <option value="1">ทุกวัน</option>
-        <option value="7">ทุกสัปดาห์</option>
-        <option value="30">ทุกเดือน</option>
-      </select>
+      <FrequencyInput value={freq} onChange={setFreq} />
       <label className="form-label">ทำล่าสุดเมื่อ (ถ้ามี)</label>
       <input type="date" value={lastDone} onChange={e => setLastDone(e.target.value)} />
       <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
@@ -778,7 +860,7 @@ function AddDiaryModal({ catId, initialDate, onDone, onClose }) {
 // ===== Edit Modals =====
 function EditRoutineModal({ routine, onDone, onClose }) {
   const [title, setTitle] = useState(routine.title)
-  const [freq, setFreq] = useState(String(routine.frequency_days))
+  const [freq, setFreq] = useState(routine.frequency_days)
   const [error, setError] = useState(null)
 
   async function submit() {
@@ -786,7 +868,7 @@ function EditRoutineModal({ routine, onDone, onClose }) {
     try {
       await api(`/api/routines/${routine.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ title: title.trim(), frequency_days: parseInt(freq, 10) }),
+        body: JSON.stringify({ title: title.trim(), frequency_days: freq }),
       })
       onDone()
     } catch (e) { setError(e.message) }
@@ -798,11 +880,7 @@ function EditRoutineModal({ routine, onDone, onClose }) {
       <label className="form-label">ชื่อกิจวัตร</label>
       <input value={title} onChange={e => setTitle(e.target.value)} autoFocus />
       <label className="form-label">ความถี่</label>
-      <select value={freq} onChange={e => setFreq(e.target.value)}>
-        <option value="1">ทุกวัน</option>
-        <option value="7">ทุกสัปดาห์</option>
-        <option value="30">ทุกเดือน</option>
-      </select>
+      <FrequencyInput value={freq} onChange={setFreq} />
       <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={submit}>บันทึก</button>
     </Modal>
   )
@@ -1016,9 +1094,18 @@ const MENU_ITEMS = [
 ]
 
 // ===== Main CatPassport =====
-export default function CatPassport({ cat: initialCat, onCatUpdate }) {
+export default function CatPassport({
+  cat: initialCat, onCatUpdate,
+  showHeader = true,
+  activeSection: controlledSection, onSectionChange,
+}) {
   const [cat, setCat] = useState(initialCat)
-  const [activeSection, setActiveSection] = useState(null)
+  const [localSection, setLocalSection] = useState(null)
+  const activeSection = controlledSection !== undefined ? controlledSection : localSection
+  function setActiveSection(s) {
+    if (onSectionChange) onSectionChange(s)
+    else setLocalSection(s)
+  }
   const [modal, setModal] = useState(null)
   const [diaryInitialDate, setDiaryInitialDate] = useState(null)
   const [versions, setVersions] = useState({ routines: 0, weight: 0, health: 0, expenses: 0, diary: 0 })
@@ -1058,9 +1145,9 @@ export default function CatPassport({ cat: initialCat, onCatUpdate }) {
   }
 
   return (
-    <div className="passport-card">
+    <div className={`passport-card${showHeader ? '' : ' no-header'}`}>
       {/* Passport header */}
-      <div className="passport-header">
+      {showHeader && <div className="passport-header">
         <div
           className="passport-photo-wrap"
           onClick={() => !uploading && fileRef.current.click()}
@@ -1105,11 +1192,11 @@ export default function CatPassport({ cat: initialCat, onCatUpdate }) {
             </div>
           )}
         </div>
-      </div>
-      {uploadError && (
+      </div>}
+      {showHeader && uploadError && (
         <div className="error-msg" style={{ margin: '8px 16px 0', fontSize: 12 }}>{uploadError}</div>
       )}
-      {uploading && (
+      {showHeader && uploading && (
         <div style={{ fontSize: 12, color: 'var(--rhino-dim)', padding: '6px 16px' }}>กำลังอัปโหลด...</div>
       )}
 

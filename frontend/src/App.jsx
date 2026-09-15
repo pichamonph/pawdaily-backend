@@ -20,6 +20,12 @@ export default function App() {
   const [error, setError] = useState(null)
   const [selectedCatId, setSelectedCatId] = useState(null)
   const [doneIds, setDoneIds] = useState(new Set())
+  const [catActiveSection, setCatActiveSection] = useState(null)
+
+  function navigateToCat(section) {
+    setCatActiveSection(section)
+    setTab('cats')
+  }
 
   useEffect(() => {
     if (!LIFF_ID) {
@@ -68,8 +74,8 @@ export default function App() {
     <>
       {header}
       <div className="wrap">
-        {tab === 'today'    && <TodayTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} doneIds={doneIds} setDoneIds={setDoneIds} />}
-        {tab === 'cats'     && <CatsTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} />}
+        {tab === 'today'    && <TodayTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} doneIds={doneIds} setDoneIds={setDoneIds} onNavigateToCat={navigateToCat} />}
+        {tab === 'cats'     && <CatsTab selectedCatId={selectedCatId} onSelectCat={setSelectedCatId} activeSection={catActiveSection} onSectionChange={setCatActiveSection} />}
         {tab === 'settings' && <SettingsTab />}
       </div>
       <div className="tabbar">
