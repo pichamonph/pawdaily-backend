@@ -660,10 +660,10 @@ input[type="date"] { color-scheme: light; }
 }
 
 /* ===== Cat menu grid ===== */
-.cat-menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
-.cat-menu-item { background: #fff; border: 1px solid var(--almond-dim); border-radius: 14px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 1px 4px rgba(46,64,96,0.07); transition: border-color 0.15s; }
+.cat-menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; margin-bottom: 4px; }
+.cat-menu-item { background: #fff; border: 1px solid var(--almond-dim); border-radius: 12px; padding: 10px 6px 8px; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; box-shadow: 0 1px 3px rgba(46,64,96,0.07); transition: border-color 0.15s; }
 .cat-menu-item:hover, .cat-menu-item:active { border-color: var(--dull-pink); }
-.cat-menu-item-label { font-size: 13px; font-weight: 600; color: var(--rhino); }
+.cat-menu-item-label { font-size: 11px; font-weight: 600; color: var(--rhino); }
 .cat-menu-back { display: flex; align-items: center; gap: 6px; color: var(--rhino-dim); font-size: 13px; padding: 4px 0 12px; cursor: pointer; border: none; background: none; font-family: Kanit, sans-serif; }
 
 /* ===== Paw check toggle ===== */

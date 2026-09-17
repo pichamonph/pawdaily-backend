@@ -394,7 +394,7 @@ export default function CatsTab({ selectedCatId, onSelectCat }) {
                 className="cat-menu-item"
                 onClick={() => navigate(`/cats/${selectedCat.id}/${id}`)}
               >
-                <Icon size={28} color={color} strokeWidth={1.8} />
+                <Icon size={22} color={color} strokeWidth={1.8} />
                 <span className="cat-menu-item-label">{label}</span>
               </div>
             ))}
