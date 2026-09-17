@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, PawPrint, Scale, Calendar, Wallet, ListChecks, Camera, ImagePlus, Pencil, TrendingUp, TrendingDown, Minus, BookOpen, Stethoscope } from 'lucide-react'
+import { Plus, PawPrint, Scale, Calendar, Wallet, ListChecks, Camera, ImagePlus, TrendingUp, TrendingDown, Minus, BookOpen, Stethoscope } from 'lucide-react'
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import { api, apiForm } from '../api'
 import Modal from './Modal'
@@ -46,6 +47,47 @@ function fmtDate(dateStr) {
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// ===== Dashboard helpers =====
+const EXPENSE_COLORS = ['#DD8C96','#E3982E','#65a30d','#2E4060','#a78bfa','#0ea5e9']
+
+function MiniWeightChart({ history }) {
+  if (!history || history.length < 2) return null
+  const vals = history.map(h => h.weight_kg)
+  const min = Math.min(...vals)
+  const max = Math.max(...vals)
+  const range = max - min || 1
+  const W = 80, H = 36, PAD = 3
+  const points = vals.map((v, i) => {
+    const x = PAD + (i / (vals.length - 1)) * (W - PAD * 2)
+    const y = H - PAD - ((v - min) / range) * (H - PAD * 2)
+    return `${x},${y}`
+  }).join(' ')
+  return (
+    <svg width={W} height={H} style={{ overflow: 'visible' }}>
+      <polyline points={points} fill="none" stroke="var(--dull-pink)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={points.split(' ').at(-1).split(',')[0]} cy={points.split(' ').at(-1).split(',')[1]} r={3} fill="var(--dull-pink)" />
+    </svg>
+  )
+}
+
+function ProgressRing({ done, total, size = 56 }) {
+  const r = (size - 8) / 2
+  const circ = 2 * Math.PI * r
+  const pct = total > 0 ? done / total : 0
+  const dash = pct * circ
+  return (
+    <svg width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--almond)" strokeWidth={6} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--dull-pink)" strokeWidth={6}
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`} />
+      <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={700} fill="var(--rhino)">
+        {done}/{total}
+      </text>
+    </svg>
+  )
+}
+
 // ===== Dashboard =====
 function CatDashboard({ catId }) {
   const [data, setData] = useState(null)
@@ -56,46 +98,98 @@ function CatDashboard({ catId }) {
 
   if (!data) return null
 
-  const { latestWeight, nextAppointment, monthExpenseTotal, routines } = data
+  const { latestWeight, weightHistory, nextAppointment, monthExpenseTotal, expenseByCategory, routines } = data
   const TrendIcon = latestWeight?.trend === 'up' ? TrendingUp : latestWeight?.trend === 'down' ? TrendingDown : Minus
+  const trendColor = latestWeight?.trend === 'up' ? '#dc2626' : latestWeight?.trend === 'down' ? '#16a34a' : 'var(--rhino-dim)'
+
+  const pieData = (expenseByCategory || []).filter(e => e.total > 0)
 
   return (
-    <div className="dashboard-card">
-      <div className="dashboard-grid">
-        <div className="dash-item">
-          <Scale size={15} color="var(--rhino-dim)" />
-          <div className="dash-value">
-            {latestWeight ? `${latestWeight.weight_kg} kg` : '—'}
+    <div className="dash-grid">
+      {/* Weight card */}
+      <div className="dash-card">
+        <div className="dash-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Scale size={11} /> น้ำหนัก
+        </div>
+        {latestWeight ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+              <span className="dash-card-main">{latestWeight.weight_kg}</span>
+              <span className="dash-card-sub">kg</span>
+              {latestWeight.trend && <TrendIcon size={13} color={trendColor} />}
+            </div>
+            <div className="dash-card-chart">
+              <MiniWeightChart history={weightHistory} />
+            </div>
+          </>
+        ) : (
+          <div className="dash-card-sub" style={{ marginTop: 8 }}>ยังไม่มีข้อมูล</div>
+        )}
+      </div>
+
+      {/* Appointment card */}
+      <div className="dash-card">
+        <div className="dash-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Calendar size={11} /> นัดถัดไป
+        </div>
+        {nextAppointment ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+              <span className="dash-card-main">{nextAppointment.daysUntil}</span>
+              <span className="dash-card-sub">วัน</span>
+            </div>
+            <div className="dash-card-sub" style={{ marginTop: 2, lineHeight: 1.3 }}>{nextAppointment.name}</div>
+          </>
+        ) : (
+          <div className="dash-card-sub" style={{ marginTop: 8 }}>ไม่มีนัด</div>
+        )}
+      </div>
+
+      {/* Expenses card */}
+      <div className="dash-card">
+        <div className="dash-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Wallet size={11} /> ค่าใช้จ่าย
+        </div>
+        {monthExpenseTotal > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <span className="dash-card-main" style={{ fontSize: 16 }}>
+                  {monthExpenseTotal.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+                </span>
+                <span className="dash-card-sub">฿</span>
+              </div>
+              <div className="dash-card-sub">เดือนนี้</div>
+            </div>
+            {pieData.length > 0 && (
+              <div style={{ width: 52, height: 52, flexShrink: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieData} dataKey="total" cx="50%" cy="50%" outerRadius={22} innerRadius={10} strokeWidth={0}>
+                      {pieData.map((_, i) => <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />)}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
-          {latestWeight?.trend && (
-            <TrendIcon size={11} color={latestWeight.trend === 'up' ? '#dc2626' : '#16a34a'} />
-          )}
-          <div className="dash-label">น้ำหนัก</div>
+        ) : (
+          <div className="dash-card-sub" style={{ marginTop: 8 }}>ยังไม่มีค่าใช้จ่าย</div>
+        )}
+      </div>
+
+      {/* Routines card */}
+      <div className="dash-card" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <div className="dash-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <ListChecks size={11} /> กิจวัตรวันนี้
         </div>
-        <div className="dash-item">
-          <Calendar size={15} color="var(--rhino-dim)" />
-          <div className="dash-value" style={{ fontSize: 11 }}>
-            {nextAppointment ? fmtDate(nextAppointment.next_due_date) : '—'}
+        {routines.total > 0 ? (
+          <div style={{ marginTop: 4 }}>
+            <ProgressRing done={routines.doneToday} total={routines.total} size={60} />
           </div>
-          {nextAppointment && (
-            <div style={{ fontSize: 10, color: 'var(--rhino-dim)', textAlign: 'center', lineHeight: 1.2 }}>{nextAppointment.name}</div>
-          )}
-          <div className="dash-label">นัดถัดไป</div>
-        </div>
-        <div className="dash-item">
-          <Wallet size={15} color="var(--rhino-dim)" />
-          <div className="dash-value" style={{ fontSize: 12 }}>
-            {monthExpenseTotal > 0
-              ? `${monthExpenseTotal.toLocaleString('th-TH', { maximumFractionDigits: 0 })} ฿`
-              : '—'}
-          </div>
-          <div className="dash-label">เดือนนี้</div>
-        </div>
-        <div className="dash-item">
-          <ListChecks size={15} color="var(--rhino-dim)" />
-          <div className="dash-value">{routines.doneToday}/{routines.total}</div>
-          <div className="dash-label">วันนี้</div>
-        </div>
+        ) : (
+          <div className="dash-card-sub" style={{ marginTop: 8 }}>ไม่มีกิจวัตร</div>
+        )}
       </div>
     </div>
   )

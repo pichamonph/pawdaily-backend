@@ -561,12 +561,16 @@ app.get('/api/cats/:id/dashboard', requireLiffAuth, async (req, res) => {
   const catId = cat.id;
   const todayThai = thaiToday();
 
-  const [weightRes, apptRes, expenseRes, routineTotalRes, routineDoneRes] = await Promise.all([
+  const [weightRes, weightHistRes, apptRes, expenseRes, expenseCatRes, routineTotalRes, routineDoneRes] = await Promise.all([
     query('SELECT weight_kg, recorded_at FROM weight_logs WHERE cat_id=$1 ORDER BY recorded_at DESC LIMIT 2', [catId]),
+    query('SELECT weight_kg, recorded_at FROM weight_logs WHERE cat_id=$1 ORDER BY recorded_at ASC LIMIT 10', [catId]),
     query(`SELECT name, next_due_date, type FROM medical_events
            WHERE cat_id=$1 AND next_due_date::text >= $2 ORDER BY next_due_date ASC LIMIT 1`, [catId, todayThai]),
     query(`SELECT COALESCE(SUM(amount),0) AS total FROM expenses
            WHERE cat_id=$1 AND DATE_TRUNC('month', expense_date) = DATE_TRUNC('month', $2::date)`, [catId, todayThai]),
+    query(`SELECT COALESCE(category,'อื่นๆ') AS category, COALESCE(SUM(amount),0)::float AS total
+           FROM expenses WHERE cat_id=$1 AND DATE_TRUNC('month', expense_date) = DATE_TRUNC('month', $2::date)
+           GROUP BY COALESCE(category,'อื่นๆ')`, [catId, todayThai]),
     query('SELECT COUNT(*)::int AS total FROM routines WHERE cat_id=$1 AND active=TRUE', [catId]),
     query(`SELECT COUNT(DISTINCT rl.routine_id)::int AS done FROM routine_logs rl
            JOIN routines r ON r.id = rl.routine_id
@@ -583,10 +587,26 @@ app.get('/api/cats/:id/dashboard', requireLiffAuth, async (req, res) => {
       : null,
   } : null;
 
+  const weightHistory = weightHistRes.rows.map(r => ({
+    weight_kg: parseFloat(r.weight_kg),
+    recorded_at: r.recorded_at,
+  }));
+
+  const nextAppt = apptRes.rows[0] || null;
+  let daysUntilAppt = null;
+  if (nextAppt) {
+    const msPerDay = 1000 * 60 * 60 * 24;
+    daysUntilAppt = Math.max(0, Math.round(
+      (new Date(String(nextAppt.next_due_date).slice(0,10) + 'T00:00:00') - new Date(todayThai + 'T00:00:00')) / msPerDay
+    ));
+  }
+
   res.json({
     latestWeight,
-    nextAppointment: apptRes.rows[0] || null,
+    weightHistory,
+    nextAppointment: nextAppt ? { ...nextAppt, daysUntil: daysUntilAppt } : null,
     monthExpenseTotal: parseFloat(expenseRes.rows[0].total),
+    expenseByCategory: expenseCatRes.rows,
     routines: { total: routineTotalRes.rows[0].total, doneToday: routineDoneRes.rows[0].done },
   });
 });
