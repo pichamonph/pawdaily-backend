@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, PawPrint, Scale, Calendar, Wallet, ListChecks, Camera, ImagePlus, TrendingUp, TrendingDown, Minus, BookOpen, Stethoscope } from 'lucide-react'
+import { Plus, Scale, Calendar, Wallet, ListChecks, Camera, ImagePlus, TrendingUp, TrendingDown, Minus, BookOpen, Stethoscope } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import { api, apiForm } from '../api'
@@ -369,7 +369,7 @@ export default function CatsTab({ selectedCatId, onSelectCat }) {
 
       {!error && cats.length === 0 && (
         <div className="empty-state">
-          <PawPrint size={56} strokeWidth={1.2} color="var(--dull-pink)" />
+          <img src="/image/cat-wink.png" alt="" style={{ width: 90, marginBottom: 4 }} />
           <div className="empty-title">ยังไม่มีแมว</div>
           <button className="primary" style={{ marginTop: 12 }} onClick={() => setShowAdd(true)}>
             <Plus size={16} style={{ marginRight: 6 }} />เพิ่มแมวตัวแรก

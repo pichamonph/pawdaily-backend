@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { CheckCircle2, ChevronLeft, ChevronRight, PawPrint } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PawPrint } from 'lucide-react'
+
+const MASCOT = '/image/cat-wink.png'
 import { api } from '../api'
 import CatSwitcher from './CatSwitcher'
 
@@ -49,6 +51,18 @@ function PawConfetti() {
           />
         </div>
       ))}
+      <img
+        src={MASCOT}
+        alt=""
+        style={{
+          position: 'absolute',
+          bottom: 80,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 90,
+          animation: 'mascot-pop-up 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards',
+        }}
+      />
     </div>
   )
 }
@@ -282,7 +296,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
         <>
           {selectedCalEvents.length === 0 ? (
             <div className="empty-state">
-              <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
+              <img src={MASCOT} alt="" style={{ width: 72, marginBottom: 4 }} />
               <div className="empty-title">ไม่มีกิจกรรม</div>
               <div className="empty-sub">ไม่มีรายการในวันนี้</div>
             </div>
@@ -304,7 +318,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
       {/* Today: show routine list */}
       {isToday && !error && filteredItems.length === 0 && (
         <div className="empty-state">
-          <CheckCircle2 size={64} strokeWidth={1.2} color="var(--dull-pink)" />
+          <img src={MASCOT} alt="" style={{ width: 80, marginBottom: 4 }} />
           <div className="empty-title">เยี่ยมมาก!</div>
           <div className="empty-sub">ไม่มีรายการที่ต้องทำ</div>
         </div>

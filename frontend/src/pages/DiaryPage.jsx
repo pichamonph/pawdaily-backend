@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { DiaryPanel, AddDiaryModal } from '../components/CatPassport'
 
@@ -10,6 +10,11 @@ export default function DiaryPage() {
   const [modal, setModal] = useState(null)
   const [diaryInitialDate, setDiaryInitialDate] = useState(null)
   const [version, setVersion] = useState(0)
+
+  useEffect(() => {
+    document.body.style.background = 'var(--almond)'
+    return () => { document.body.style.background = '' }
+  }, [])
 
   function openDiaryAdd(dateStr) {
     setDiaryInitialDate(dateStr)

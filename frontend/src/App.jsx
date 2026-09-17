@@ -81,7 +81,10 @@ function AppContent() {
   if (!ready) return (
     <>
       {header}
-      <div className="wrap"><div className="sub">กำลังโหลด...</div></div>
+      <div className="wrap" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, gap: 12 }}>
+        <img src="/image/cat-wink.png" alt="" style={{ width: 88, animation: 'mascot-bounce 1.4s ease-in-out infinite' }} />
+        <div className="sub">กำลังโหลด...</div>
+      </div>
     </>
   )
 
