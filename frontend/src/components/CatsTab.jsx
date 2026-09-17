@@ -12,7 +12,6 @@ const BREEDS = [
 
 const MENU_ITEMS = [
   { id: 'routines', Icon: ListChecks,  label: 'กิจวัตร',     color: '#2E4060' },
-  { id: 'weight',   Icon: Scale,       label: 'น้ำหนัก',     color: '#4A5D80' },
   { id: 'health',   Icon: Stethoscope, label: 'สุขภาพ',      color: '#DD8C96' },
   { id: 'expenses', Icon: Wallet,      label: 'ค่าใช้จ่าย',  color: '#E3982E' },
   { id: 'diary',    Icon: BookOpen,    label: 'ไดอารี่',      color: '#65a30d' },

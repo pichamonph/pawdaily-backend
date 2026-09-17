@@ -7,6 +7,7 @@ import TodayTab from './components/TodayTab'
 import CatsTab from './components/CatsTab'
 import SettingsTab from './components/SettingsTab'
 import RoutinesPage from './pages/RoutinesPage'
+import { Navigate } from 'react-router-dom'
 import WeightPage from './pages/WeightPage'
 import HealthPage from './pages/HealthPage'
 import ExpensesPage from './pages/ExpensesPage'
@@ -37,10 +38,6 @@ function AppContent() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  function navigateToCat(section) {
-    if (selectedCatId) navigate(`/cats/${selectedCatId}/${section}`)
-  }
-
   useEffect(() => {
     if (!LIFF_ID) {
       setError('VITE_LIFF_ID ยังไม่ได้ตั้งค่า — ใส่ใน Environment Variables ของ Render แล้ว deploy ใหม่')
@@ -53,10 +50,14 @@ function AppContent() {
         setTokenGetter(() => liff.getIDToken())
         try {
           const cats = await api('/api/cats')
-          if (cats.length > 0) setSelectedCatId(cats[0].id)
-          if (cats.length === 0) navigate('/cats')
+          if (cats.length > 0) {
+            setSelectedCatId(cats[0].id)
+            navigate('/')          // explicit navigate to home so hash-route is always correct
+          } else {
+            navigate('/cats')
+          }
         } catch {
-          // fallback to default tab if check fails
+          navigate('/')            // fallback to home on API failure
         }
         setReady(true)
       })
@@ -98,7 +99,6 @@ function AppContent() {
               onSelectCat={setSelectedCatId}
               doneIds={doneIds}
               setDoneIds={setDoneIds}
-              onNavigateToCat={navigateToCat}
             />
           } />
           <Route path="/cats" element={
@@ -114,6 +114,7 @@ function AppContent() {
           <Route path="/cats/:id/expenses" element={<ExpensesPage />} />
           <Route path="/cats/:id/diary" element={<DiaryPage />} />
           <Route path="/settings" element={<SettingsTab />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
       {!isPassportPage && (

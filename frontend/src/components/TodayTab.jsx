@@ -1,15 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { CheckCircle2, ChevronLeft, ChevronRight, ListChecks, Scale, Stethoscope, Wallet, BookOpen } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { CheckCircle2, ChevronLeft, ChevronRight, PawPrint } from 'lucide-react'
 import { api } from '../api'
 import CatSwitcher from './CatSwitcher'
-
-const CAT_MENU_ITEMS = [
-  { id: 'routines', Icon: ListChecks,  label: 'กิจวัตร',     color: '#2E4060' },
-  { id: 'weight',   Icon: Scale,       label: 'น้ำหนัก',     color: '#4A5D80' },
-  { id: 'health',   Icon: Stethoscope, label: 'สุขภาพ',      color: '#DD8C96' },
-  { id: 'expenses', Icon: Wallet,      label: 'ค่าใช้จ่าย',  color: '#E3982E' },
-  { id: 'diary',    Icon: BookOpen,    label: 'ไดอารี่',      color: '#65a30d' },
-]
 
 function greeting() {
   const h = new Date().getHours()
@@ -23,6 +15,42 @@ function isOverdue(item) {
   const last = new Date(String(item.last_done_at).slice(0, 10) + 'T00:00:00')
   const daysSince = Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24))
   return daysSince > item.frequency_days * 2
+}
+
+function PawConfetti() {
+  const paws = useMemo(() =>
+    Array.from({ length: 15 }, (_, i) => ({
+      id: i,
+      left: 5 + Math.random() * 88,
+      delay: Math.random() * 1.6,
+      size: 14 + Math.floor(Math.random() * 14),
+      rotate: Math.floor(Math.random() * 60 - 30),
+      duration: 1.8 + Math.random() * 0.8,
+    }))
+  , [])
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 400 }}>
+      {paws.map(p => (
+        <div
+          key={p.id}
+          style={{
+            position: 'absolute',
+            left: `${p.left}%`,
+            top: 0,
+            animation: `paw-fall ${p.duration}s ${p.delay}s ease-in forwards`,
+            lineHeight: 0,
+          }}
+        >
+          <PawPrint
+            size={p.size}
+            color="var(--dull-pink)"
+            strokeWidth={1.5}
+            style={{ transform: `rotate(${p.rotate}deg)`, opacity: 0.85 }}
+          />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 const DAY_HEADERS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
@@ -109,7 +137,7 @@ function MiniCalendar({ selectedDate, onSelectDate, calEvents }) {
   )
 }
 
-export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneIds, onNavigateToCat }) {
+export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneIds }) {
   const [items, setItems] = useState([])
   const [cats, setCats] = useState([])
   const [loading, setLoading] = useState(true)
@@ -117,6 +145,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
   const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('sv'))
   const [calEvents, setCalEvents] = useState({})
   const [dateItems, setDateItems] = useState([])
+  const [showConfetti, setShowConfetti] = useState(false)
   const calMonth = useRef(null)
 
   const load = useCallback(async () => {
@@ -153,7 +182,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
       .catch(() => {})
   }, [selectedDate])
 
-  // Fetch routines + appointments for non-today selected date
+  // Fetch routines + appointments for non-today selected date (re-fetch when cat changes too)
   useEffect(() => {
     const todayStr = new Date().toLocaleDateString('sv')
     if (selectedDate === todayStr) {
@@ -163,7 +192,7 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
     api(`/api/today?date=${selectedDate}`)
       .then(setDateItems)
       .catch(() => setDateItems([]))
-  }, [selectedDate])
+  }, [selectedDate, selectedCatId])
 
   async function toggleDone(id) {
     const isDone = doneIds.has(id)
@@ -172,11 +201,22 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
       isDone ? next.delete(id) : next.add(id)
       return next
     })
+    // Trigger confetti when the last item is marked done
+    if (!isDone) {
+      const todayStr = new Date().toLocaleDateString('sv')
+      if (selectedDate === todayStr) {
+        const filtered = selectedCatId ? items.filter(it => it.cat_id === selectedCatId) : items
+        const willAllBeDone = filtered.length > 0 && filtered.every(it => it.id === id || doneIds.has(it.id))
+        if (willAllBeDone) {
+          setShowConfetti(true)
+          setTimeout(() => setShowConfetti(false), 4500)
+        }
+      }
+    }
     try {
       await api(`/api/routines/${id}/complete`, { method: isDone ? 'DELETE' : 'POST' })
     } catch (err) {
       setError(err.message)
-      // revert on error
       setDoneIds(prev => {
         const next = new Set(prev)
         isDone ? next.add(id) : next.delete(id)
@@ -199,11 +239,15 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })
   })()
 
-  // For non-today dates: use fetched routines+appointments from /api/today?date=
-  const selectedCalEvents = !isToday ? dateItems : []
+  // Filter non-today events by selected cat
+  const selectedCalEvents = !isToday
+    ? (selectedCatId ? dateItems.filter(ev => ev.cat_id === selectedCatId) : dateItems)
+    : []
 
   return (
     <>
+      {showConfetti && <PawConfetti />}
+
       {/* Greeting card first */}
       <div className="greeting-card">
         <div className="greeting-text">{greeting()}</div>
@@ -277,12 +321,15 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
                 style={{ padding: '10px 16px' }}
               >
                 <button
-                  className={`circle-check${done ? ' checked' : ''}`}
+                  className={`paw-check${done ? ' checked' : ''}`}
                   onClick={() => toggleDone(it.id)}
                   aria-label={done ? 'ยกเลิก' : 'ทำแล้ว'}
                 >
-                  {done && <CheckCircle2 size={22} strokeWidth={2} />}
-                  {!done && <span className="circle-check-empty" />}
+                  <PawPrint
+                    size={24}
+                    strokeWidth={done ? 2.5 : 1.5}
+                    color={done ? 'var(--dull-pink)' : 'var(--almond-dim)'}
+                  />
                 </button>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap', flex: 1 }}>
                   {isOverdue(it) && <span className="overdue-badge">เลยกำหนด</span>}
@@ -294,22 +341,6 @@ export default function TodayTab({ selectedCatId, onSelectCat, doneIds, setDoneI
         </div>
       )}
 
-      {/* Quick access cat menu grid */}
-      {selectedCatId && onNavigateToCat && (
-        <div style={{ marginTop: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--rhino-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-            จัดการแมว
-          </div>
-          <div className="cat-menu-grid">
-            {CAT_MENU_ITEMS.map(({ id, Icon, label, color }) => (
-              <div key={id} className="cat-menu-item" onClick={() => onNavigateToCat(id)}>
-                <Icon size={24} color={color} strokeWidth={1.8} />
-                <span className="cat-menu-item-label">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </>
   )
 }
