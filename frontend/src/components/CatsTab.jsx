@@ -386,9 +386,6 @@ export default function CatsTab({ selectedCatId, onSelectCat }) {
             onPassport={() => navigate(`/cats/${selectedCat.id}/passport`)}
           />
 
-          {/* Dashboard */}
-          <CatDashboard catId={selectedCat.id} />
-
           {/* Section menu grid */}
           <div className="cat-menu-grid">
             {MENU_ITEMS.map(({ id, Icon, label, color }) => (
@@ -402,6 +399,9 @@ export default function CatsTab({ selectedCatId, onSelectCat }) {
               </div>
             ))}
           </div>
+
+          {/* Dashboard */}
+          <CatDashboard catId={selectedCat.id} />
         </>
       )}
 
